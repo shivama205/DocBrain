@@ -1,0 +1,64 @@
+Project Name: DocBrain
+===========================
+
+Overview:
+---------
+DocBrain is a backend system designed to support a Retrieval-Augmented Generation (RAG) pipeline. It leverages llama-index for document indexing, Pinecone for vector storage, and the Gemini LLM for generating insightful responses. The backend is built using Python FastAPI and is intended as an internal tool for companies, similar in spirit to Google's NotebookLM.
+
+Key Features:
+-------------
+1. Knowledge Base Management:
+   - Users can create and manage multiple knowledge bases.
+   - Each knowledge base supports storing and organizing documents.
+
+2. File Upload and Ingestion:
+   - Users can upload various file types to populate the knowledge bases.
+   - Supported file formats include documents, CSVs, images, and PDFs.
+   - Maximum file size for uploads is set to 10MB.
+   - The ingestion pipeline processes files asynchronously using Celery queues.
+   - The document ingestion process uses a hierarchical chunking strategy and employs the command design pattern to support different runtime behaviors (allowing the code to run as both an app server and a Celery consumer).
+
+3. Conversational Interface:
+   - Chat functionality on top of the indexed documents.
+   - Users can query and interact with their documents in a conversational manner.
+   - A simple progress bar will be shown during conversational queries to indicate processing.
+
+4. RAG Pipeline Integration:
+   - Utilizes llama-index for efficient document indexing and retrieval.
+   - Employs Pinecone for fast, scalable vector searches.
+   - Integrates Gemini LLM for generating responses based on retrieved content, using OpenAI's chat completions library.
+
+5. Access Control & User Management:
+   - Robust user authentication and authorization via JWT with a token expiration time of 1 hour.
+   - Supports user registration based on email and password.
+   - Incorporates email verification and password reset functionalities using SendGrid, with verification/reset links expiring within 60 minutes.
+   - Test emails are hardcoded in a configuration file (per environment) for whitelisting purposes.
+   - An admin panel is provided to manage user access, including user management (activation/deactivation, role management), API keys, and oversight of file ingestion.
+
+Architecture & Technologies:
+----------------------------
+- Backend: Python FastAPI
+- Database: DuckDB for user credentials, metadata, and knowledge base details
+- Indexing: llama-index
+- Vector Store: Pinecone
+- Language Model: Gemini LLM (accessed via OpenAI's chat completions library)
+- Deployment: Dockerized using Docker Compose
+- Security: JWT-based authentication with 1-hour token expiration, email verification via SendGrid, and a dedicated admin interface for managing users and keys
+- Asynchronous Processing: Utilizes Celery queues and the command design pattern for document ingestion and processing
+- Observability: Basic logging and a simple logging dashboard integrated for tracking performance and errors
+
+Resolved Questions:
+-------------------
+1. Database Technology: DuckDB (previously MySQL)
+2. Authentication Method: JWT with a 1-hour token expiration
+3. User Registration: Supported via email and password, with email verification and password reset functionalities using SendGrid; test emails are whitelisted via config
+4. File Formats: Documents, CSVs, images, PDFs (max file size: 10MB)
+5. Deployment Requirements: Dockerized using Docker Compose
+6. LLM Integration: Gemini LLM via OpenAI's chat completions library
+7. Admin Interface: Includes user management (activation/deactivation, role management), API key management, and file ingestion oversight
+8. Conversational Query UX: Progress bar to show processing during query execution
+9. Document Ingestion: Asynchronous processing using Celery queues and command design pattern; uses hierarchical chunking strategy
+
+Questions / Follow-up Considerations:
+--------------------------------------
+(No further questions as per user's instructions) 
