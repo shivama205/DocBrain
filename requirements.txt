@@ -127,6 +127,7 @@ regex==2024.11.6
 requests==2.32.3
 rsa==4.9
 sendgrid==6.11.0
+sentence-transformers==2.6.0
 six==1.17.0
 sniffio==1.3.1
 soupsieve==2.6
@@ -136,7 +137,9 @@ starlette==0.45.3
 striprtf==0.0.26
 tenacity==9.0.0
 tiktoken==0.9.0
+torch==2.3.0
 tqdm==4.67.1
+transformers==4.42.4
 typing-inspect==0.9.0
 typing_extensions==4.12.2
 tzdata==2025.1
