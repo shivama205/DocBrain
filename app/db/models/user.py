@@ -24,10 +24,6 @@ class User(BaseModel):
     reset_token = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     
-    # Relationships
-    knowledge_bases = relationship("KnowledgeBase", back_populates="user", cascade="all, delete-orphan")
-    documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")
-
 # Pydantic User model for API
 class UserModel:
     """Pydantic User model for API"""

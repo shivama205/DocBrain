@@ -77,7 +77,7 @@ class KnowledgeBaseService:
             knowledge_base = KnowledgeBase(
                 name=kb_data.name,
                 description=kb_data.description,
-                owner_id=str(current_user.id)
+                user_id=str(current_user.id)
             )
             kb = await self.repository.create(
                 knowledge_base,

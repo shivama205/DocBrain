@@ -13,14 +13,4 @@ class Conversation(BaseModel):
     is_active = Column(Boolean, default=True)
     
     # Relationships
-    user = relationship("User", back_populates="conversations")
-    knowledge_base = relationship("KnowledgeBase", back_populates="conversations")
-    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
-
-# Add the relationship to User model
-from app.db.models.user import User
-User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
-
-# Add the relationship to KnowledgeBase model
-from app.db.models.knowledge_base import KnowledgeBase
-KnowledgeBase.conversations = relationship("Conversation", back_populates="knowledge_base") 
+    messages = relationship("Message", cascade="all, delete-orphan")
