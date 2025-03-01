@@ -21,12 +21,17 @@ class ConversationRepository:
             "updated_at": current_time
         }
         conversation_model = Conversation(**conversation_dict)
-        return db.create("conversations", conversation_model)
+        session = db.get_session()
+        session.add(conversation_model)
+        session.commit()
+        session.refresh(conversation_model)
+        return conversation_model
 
     @staticmethod
     async def get_by_id(conversation_id: str, user: User) -> Optional[Conversation]:
         """Get conversation by ID for a specific user"""
-        conversation = db.get("conversations", Conversation, conversation_id)
+        session = db.get_session()
+        conversation = session.get(Conversation, conversation_id)
         if conversation and conversation.owner_id == str(user.id):
             return conversation
         return None
@@ -34,13 +39,15 @@ class ConversationRepository:
     @staticmethod
     async def list_by_user(user: User) -> List[Conversation]:
         """List all conversations for a user"""
-        return db.list("conversations", Conversation, {"owner_id": str(user.id)})
+        session = db.get_session()
+        return session.query(Conversation).filter(Conversation.owner_id == str(user.id)).all()
 
     @staticmethod
     async def update(conversation_id: str, conversation_update: ConversationUpdate, user: User) -> Optional[Conversation]:
         """Update conversation details"""
         # First verify ownership
-        conversation = await ConversationRepository.get_by_id(conversation_id, user)
+        session = db.get_session()
+        conversation = session.get(Conversation, conversation_id)
         if not conversation:
             return None
 
@@ -48,7 +55,9 @@ class ConversationRepository:
         update_data = conversation_update.model_dump(exclude_unset=True)
         if update_data:
             update_data["updated_at"] = datetime.utcnow().isoformat()
-            db.update("conversations", conversation_id, update_data)
+            session.update(conversation_id, update_data)
+            session.commit()
+            session.refresh(conversation_id)
             return await ConversationRepository.get_by_id(conversation_id, user)
         return conversation
 
@@ -57,31 +66,31 @@ class ConversationRepository:
         """Delete a conversation and all its messages"""
         try:
             # First verify ownership
-            conversation = await ConversationRepository.get_by_id(conversation_id, user)
+            session = db.get_session()
+            conversation = session.get(Conversation, conversation_id)
             if not conversation:
                 return False
 
-            with db.get_connection() as con:
-                # Start transaction
-                con.execute("BEGIN TRANSACTION")
-                try:
-                    # Delete all messages first
-                    logger.debug(f"Deleting messages for conversation {conversation_id}")
-                    con.execute("DELETE FROM messages WHERE conversation_id = ?", [conversation_id])
-                    
-                    # Then delete the conversation
-                    logger.debug(f"Deleting conversation {conversation_id}")
-                    con.execute("DELETE FROM conversations WHERE id = ?", [conversation_id])
-                    
-                    # Commit transaction
-                    con.execute("COMMIT")
-                    logger.info(f"Successfully deleted conversation {conversation_id} and its messages")
-                    return True
-                except Exception as e:
-                    # Rollback on error
-                    con.execute("ROLLBACK")
-                    logger.error(f"Failed to delete conversation {conversation_id}: {e}")
-                    raise
+            # Start transaction
+            session.execute("BEGIN TRANSACTION")
+            try:
+                # Delete all messages first
+                logger.debug(f"Deleting messages for conversation {conversation_id}")
+                session.execute("DELETE FROM messages WHERE conversation_id = ?", [conversation_id])
+                
+                # Then delete the conversation
+                logger.debug(f"Deleting conversation {conversation_id}")
+                session.execute("DELETE FROM conversations WHERE id = ?", [conversation_id])
+                
+                # Commit transaction
+                session.execute("COMMIT")
+                logger.info(f"Successfully deleted conversation {conversation_id} and its messages")
+                return True
+            except Exception as e:
+                # Rollback on error
+                session.execute("ROLLBACK")
+                logger.error(f"Failed to delete conversation {conversation_id}: {e}")
+                raise
         except Exception as e:
             logger.error(f"Error in delete operation: {e}")
             raise 

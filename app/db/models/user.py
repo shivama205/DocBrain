@@ -22,6 +22,7 @@ class User(BaseModel):
     is_verified = Column(Boolean, default=False)
     verification_token = Column(String, nullable=True)
     reset_token = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
     
     # Relationships
     knowledge_bases = relationship("KnowledgeBase", back_populates="user", cascade="all, delete-orphan")

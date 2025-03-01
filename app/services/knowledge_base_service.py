@@ -33,7 +33,7 @@ class LocalFileStorage:
         self.upload_dir = upload_dir
     
     async def save_file(self, file: UploadFile) -> str:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{timestamp}_{file.filename}"
         file_path = os.path.join(self.upload_dir, safe_filename)
         
