@@ -11,6 +11,9 @@ from app.services.retriever_factory import RetrieverFactory
 from app.models.knowledge_base import DocumentStatus
 from app.core.chunking import ChunkingStrategy, DocumentType, chunk_document_multi_level
 from app.services.rag_service import RAGService
+from app.services.ingestor_factory import IngestorFactory
+from app.services.chunker_factory import ChunkerFactory
+from app.services.chunker import ChunkSize
 from app.repositories.message_repository import MessageRepository
 from app.core.config import settings
 
@@ -25,7 +28,20 @@ logger = logging.getLogger(__name__)
     retry_jitter=True
 )
 def process_document(self, document_id: str) -> None:
-    """Process document content and create chunks"""
+    """
+    Process document content and create chunks.
+    
+    This task is triggered when a document is uploaded to the system.
+    It performs the following steps:
+    1. Retrieve the document from the database
+    2. Update document status to PROCESSING
+    3. Detect document type and extract content
+    4. Ingest the document using appropriate ingestor
+    5. Chunk the document using appropriate chunker
+    6. Store chunks in vector store
+    7. Generate document summary
+    8. Update document status to COMPLETED
+    """
     logger.info(f"Starting document processing task for document_id: {document_id}")
     
     async def _process():
@@ -56,8 +72,9 @@ def process_document(self, document_id: str) -> None:
                 logger.error(f"Failed to decode document content: {e}")
                 raise ValueError(f"Invalid document content: {str(e)}")
             
-            # Create RAG service
-            rag_service = RAGService(document.knowledge_base_id)
+            # Detect document type
+            document_type = _detect_document_type(document.content_type)
+            logger.info(f"Detected document type: {document_type}")
             
             # Prepare metadata
             metadata = {
@@ -66,15 +83,47 @@ def process_document(self, document_id: str) -> None:
                 "document_title": document.title,
                 "content_type": document.content_type,
                 "knowledge_base_id": document.knowledge_base_id,
-                "document_type": _detect_document_type(document.content_type)
+                "document_type": document_type
             }
             
-            # Ingest document
+            # Method 1: Use RAG service for end-to-end processing
+            # This is simpler but provides less control over individual steps
+            rag_service = RAGService(document.knowledge_base_id)
             result = await rag_service.ingest_document(
                 content=content,
                 metadata=metadata,
-                content_type=document.content_type
+                content_type=document.content_type,
+                chunk_size=_get_chunk_size(document_type)
             )
+            chunk_count = result["chunk_count"]
+            
+            # Method 2: Process step by step (alternative approach with more control)
+            # Uncomment this section if you need more control over the ingestion process
+            """
+            # Create ingestor based on content type
+            ingestor = IngestorFactory.create_ingestor(document.content_type)
+            
+            # Ingest document
+            ingestion_result = await ingestor.ingest(content, metadata)
+            
+            # Extract text and enhanced metadata
+            text = ingestion_result["text"]
+            enhanced_metadata = ingestion_result["metadata"]
+            
+            # Create chunker based on document type
+            chunker = ChunkerFactory.create_chunker_from_metadata(enhanced_metadata)
+            
+            # Chunk document
+            chunks = await chunker.chunk(text, enhanced_metadata, _get_chunk_size(document_type))
+            
+            # Create retriever
+            retriever = RetrieverFactory.create_retriever(document.knowledge_base_id)
+            
+            # Store chunks in vector store
+            await retriever.add_chunks(chunks)
+            
+            chunk_count = len(chunks)
+            """
             
             # Generate document summary
             logger.info(f"Generating summary for document {document_id}")
@@ -90,12 +139,12 @@ def process_document(self, document_id: str) -> None:
                 {
                     "status": DocumentStatus.COMPLETED,
                     "error_message": None,
-                    "processed_chunks": result["chunk_count"],
+                    "processed_chunks": chunk_count,
                     "summary": summary
                 }
             )
             
-            logger.info(f"Document {document_id} processed successfully with {result['chunk_count']} chunks")
+            logger.info(f"Document {document_id} processed successfully with {chunk_count} chunks")
             
         except MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for document {document_id}")
@@ -297,29 +346,51 @@ def process_rag_response(
     # Run the async function using asyncio.run()
     return asyncio.run(_process())
 
-def _detect_document_type(content_type: str) -> DocumentType:
-    """Detect document type from content type"""
+def _detect_document_type(content_type: str) -> str:
+    """
+    Detect document type from content type.
+    
+    Args:
+        content_type: MIME type of the document
+        
+    Returns:
+        Document type as a string
+    """
     content_type = content_type.lower()
     
     if 'pdf' in content_type:
-        return DocumentType.PDF_WITH_LAYOUT
+        return "pdf_with_layout"
     elif any(code_type in content_type for code_type in ['javascript', 'python', 'java', 'typescript']):
-        return DocumentType.CODE
+        return "code"
     elif content_type in ['text/markdown', 'text/rst']:
-        return DocumentType.TECHNICAL_DOCS
+        return "technical_docs"
     elif 'legal' in content_type or content_type == 'application/contract':
-        return DocumentType.LEGAL_DOCS
+        return "legal_docs"
+    elif content_type in ['text/csv', 'application/csv']:
+        return "structured_text"
+    elif content_type.startswith('image/'):
+        return "image"
     else:
-        return DocumentType.UNSTRUCTURED_TEXT
+        return "unstructured_text"
 
-def _get_chunk_size_for_type(doc_type: DocumentType) -> int:
-    """Get appropriate chunk size based on document type"""
+def _get_chunk_size(document_type: str) -> ChunkSize:
+    """
+    Get appropriate chunk size based on document type.
+    
+    Args:
+        document_type: Type of document
+        
+    Returns:
+        ChunkSize enum value
+    """
     chunk_sizes = {
-        DocumentType.UNSTRUCTURED_TEXT: 512,
-        DocumentType.TECHNICAL_DOCS: 1024,
-        DocumentType.CODE: 300,
-        DocumentType.LEGAL_DOCS: 256,
-        DocumentType.PDF_WITH_LAYOUT: 512
+        "unstructured_text": ChunkSize.MEDIUM,
+        "structured_text": ChunkSize.MEDIUM,
+        "technical_docs": ChunkSize.LARGE,
+        "code": ChunkSize.SMALL,
+        "legal_docs": ChunkSize.SMALL,
+        "pdf_with_layout": ChunkSize.MEDIUM,
+        "image": ChunkSize.MEDIUM
     }
     
-    return chunk_sizes.get(doc_type, 512) 
+    return chunk_sizes.get(document_type, ChunkSize.MEDIUM) 

@@ -172,6 +172,7 @@ data/uploads/
 *.log
 celerybeat-schedule
 celerybeat.pid
+docbrain.db
 
 # OS specific
 .DS_Store

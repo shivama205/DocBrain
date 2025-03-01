@@ -9,7 +9,7 @@ import random
 
 logger = logging.getLogger(__name__)
 
-class VectorRepository:
+class VectorStore:
     def __init__(self):
         # Initialize Pinecone
         self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
