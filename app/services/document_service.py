@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.models.knowledge_base import Document, DocumentStatus
 from app.db.models.user import User, UserRole
 from app.repositories.document_repository import DocumentRepository
+from app.schemas.user import UserResponse
 from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.services.rag.chunker.chunker import DocumentType
 from app.services.knowledge_base_service import KnowledgeBaseService, FileStorage
@@ -39,7 +40,7 @@ class DocumentService:
         kb_id: str,
         doc_data: DocumentCreate,
         file: UploadFile,
-        current_user: User
+        current_user: UserResponse
     ) -> Document:
         """Create a new document in a knowledge base"""
         file_path = None
@@ -141,7 +142,7 @@ class DocumentService:
     async def get_document(
         self,
         doc_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> Document:
         """Get document details"""
         try:
@@ -162,7 +163,7 @@ class DocumentService:
     async def list_documents(
         self,
         kb_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> List[DocumentResponse]:
         """List all documents in a knowledge base"""
         try:
@@ -177,7 +178,7 @@ class DocumentService:
         self,
         doc_id: str,
         doc_update: DocumentUpdate,
-        current_user: User
+        current_user: UserResponse
     ) -> Document:
         """Update document metadata"""
         try:
@@ -207,7 +208,7 @@ class DocumentService:
     async def delete_document(
         self,
         doc_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> None:
         """Delete a document from a knowledge base"""
         try:

@@ -1,11 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
-from typing import List, Optional
+from fastapi import APIRouter, Body, Depends, UploadFile, File, Form
 import logging
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models.user import User
-from app.db.models.knowledge_base import DocumentStatus
+from app.schemas.user import UserResponse
 from app.services.document_service import DocumentService
 from app.services.knowledge_base_service import KnowledgeBaseService, LocalFileStorage
 from app.repositories.document_repository import DocumentRepository
@@ -69,7 +67,7 @@ async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(...),
     knowledge_base_id: str = Form(...),
-    current_user: User = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """
@@ -86,7 +84,7 @@ async def upload_document(
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """
@@ -108,8 +106,8 @@ async def get_document(
 @router.put("/{document_id}", response_model=DocumentResponse)
 async def update_document(
     document_id: str,
-    doc_update: DocumentUpdate,
-    current_user: User = Depends(get_current_user),
+    doc_update: DocumentUpdate = Body(..., description="Document details"),
+    current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """
@@ -120,7 +118,7 @@ async def update_document(
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """

@@ -1,11 +1,12 @@
 from typing import List
-from fastapi import HTTPException, BackgroundTasks
+from fastapi import HTTPException
 import logging
 from datetime import datetime
+from sqlalchemy.orm import Session
 
 from app.db.models.message import Message
-from app.db.models.user import User
 from app.repositories.message_repository import MessageRepository
+from app.schemas.user import UserResponse
 from app.services.conversation_service import ConversationService
 from app.worker.celery import celery_app
 from app.schemas.message import MessageCreate, MessageType
@@ -17,17 +18,18 @@ class MessageService:
     def __init__(
         self,
         message_repository: MessageRepository,
-        conversation_service: ConversationService
+        conversation_service: ConversationService,
+        db: Session
     ):
         self.repository = message_repository
         self.conversation_service = conversation_service
+        self.db = db
 
     async def create_message(
         self,
         conversation_id: str,
         message_data: MessageCreate,
-        current_user: User,
-        background_tasks: BackgroundTasks
+        current_user: UserResponse,
     ) -> Message:
         """Create a new message in a conversation"""
         try:
@@ -37,17 +39,26 @@ class MessageService:
                 current_user
             )
 
-            current_time = datetime.utcnow().isoformat()
-
             # Create user message
+            message = Message(
+                conversation_id=conversation_id,
+                content=message_data.content,
+                type=MessageType.USER,
+                user_id=current_user.id
+            )
             user_message = await self.repository.create(
-                conversation_id,
-                message_data,
-                user_message=True
+                message,
+                self.db
             )
             logger.info(f"User message {user_message.id} created in conversation {conversation_id}")
 
             # Create assistant message
+            response_message = Message(
+                conversation_id=conversation_id,
+                content="",
+                type=MessageType.ASSISTANT,
+                user_id=current_user.id
+            )
             assistant_message_data = MessageCreate(
                 content="",
                 type=MessageType.ASSISTANT,
@@ -55,9 +66,8 @@ class MessageService:
                 similarity_cutoff=message_data.similarity_cutoff
             )
             assistant_message = await self.repository.create(
-                conversation_id,
-                assistant_message_data,
-                user_message=False
+                response_message,
+                self.db
             )
             logger.info(f"Assistant message {assistant_message.id} created in conversation {conversation_id}")
 
@@ -83,14 +93,14 @@ class MessageService:
         self,
         conversation_id: str,
         message_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> Message:
         """Get message details"""
         try:
             # Check conversation access first
             await self.conversation_service.get_conversation(conversation_id, current_user)
 
-            message = await self.repository.get_by_id(conversation_id, message_id, current_user)
+            message = await self.repository.get_by_id(message_id, self.db)
             if not message:
                 logger.warning(f"Message {message_id} not found in conversation {conversation_id}")
                 raise HTTPException(status_code=404, detail="Message not found")
@@ -105,14 +115,14 @@ class MessageService:
     async def list_messages(
         self,
         conversation_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> List[Message]:
         """List all messages in a conversation"""
         try:
             # Check conversation access first
             await self.conversation_service.get_conversation(conversation_id, current_user)
 
-            messages = await self.repository.list_by_conversation(conversation_id, current_user)
+            messages = await self.repository.list_by_conversation(conversation_id, self.db)
             logger.info(f"Retrieved {len(messages)} messages from conversation {conversation_id}")
             return messages
         except Exception as e:

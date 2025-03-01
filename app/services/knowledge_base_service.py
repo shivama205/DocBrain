@@ -8,8 +8,9 @@ from celery import Celery
 from sqlalchemy.orm import Session
 
 from app.db.models.knowledge_base import KnowledgeBase
-from app.db.models.user import User, UserRole
+from app.db.models.user import UserRole
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
+from app.schemas.user import UserResponse
 from app.services.rag.vector_store import VectorStore
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseResponse, KnowledgeBaseUpdate
 
@@ -68,7 +69,7 @@ class KnowledgeBaseService:
     async def create_knowledge_base(
         self, 
         kb_data: KnowledgeBaseCreate,
-        current_user: User
+        current_user: UserResponse
     ) -> KnowledgeBase:
         """Create a new knowledge base"""
         try:
@@ -89,7 +90,7 @@ class KnowledgeBaseService:
     async def get_knowledge_base(
         self,
         kb_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> KnowledgeBaseResponse:
         """Get a knowledge base by ID"""
         kb =  await self.repository.get_by_id(kb_id, self.db)
@@ -106,7 +107,7 @@ class KnowledgeBaseService:
 
     async def list_knowledge_bases(
         self,
-        current_user: User
+        current_user: UserResponse
     ) -> List[KnowledgeBase]:
         """List all knowledge bases accessible to the user"""
         if current_user.role == UserRole.ADMIN:
@@ -118,7 +119,7 @@ class KnowledgeBaseService:
         self,
         kb_id: str,
         kb_data: KnowledgeBaseUpdate,
-        current_user: User
+        current_user: UserResponse
     ) -> KnowledgeBase:
         """Update a knowledge base"""
         kb = await self.repository.get_by_id(kb_id, self.db)
@@ -144,7 +145,7 @@ class KnowledgeBaseService:
     async def delete_knowledge_base(
         self,
         kb_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> None:
         """Delete a knowledge base and all its documents"""
         kb = await self.repository.get_by_id(kb_id, self.db)
@@ -176,7 +177,7 @@ class KnowledgeBaseService:
         self,
         kb_id: str,
         user_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> None:
         """Share a knowledge base with another user"""
         # Implementation will depend on how sharing is handled in your database model

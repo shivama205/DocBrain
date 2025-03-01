@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models.user import User
 from app.core.config import settings
+from app.schemas.user import UserResponse
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserResponse:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_id = payload.get("sub")
@@ -20,11 +21,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             
 
         # get db 
+        print(f"Getting user {user_id} from db")
         user = db.query(User).filter(User.id == user_id).first()
+        print(f"User: {user}")
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
             
-        return user
+        return UserResponse.model_validate(user)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 

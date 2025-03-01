@@ -1,11 +1,12 @@
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, HTTPException, BackgroundTasks
 from functools import lru_cache
 from sqlalchemy.orm import Session
 
 from app.db.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
 from app.api.deps import get_current_user
+from app.schemas.user import UserResponse
 from app.services.message_service import MessageService
 from app.repositories.message_repository import MessageRepository
 from app.api.endpoints.conversations import get_conversation_service
@@ -33,9 +34,8 @@ def get_message_service(
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
 async def create_message(
     conversation_id: str,
-    message: MessageCreate,
-    background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
+    message: MessageCreate = Body(..., description="Message details"),
+    current_user: UserResponse = Depends(get_current_user),
     message_service: MessageService = Depends(get_message_service)
 ):
     """Create a new message in a conversation"""
@@ -43,13 +43,12 @@ async def create_message(
         conversation_id,
         message,
         current_user,
-        background_tasks
     )
 
 @router.get("/{conversation_id}/messages", response_model=List[MessageResponse])
 async def list_messages(
     conversation_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     message_service: MessageService = Depends(get_message_service)
 ):
     """List all messages in a conversation"""
@@ -59,7 +58,7 @@ async def list_messages(
 async def get_message(
     conversation_id: str,
     message_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: UserResponse = Depends(get_current_user),
     message_service: MessageService = Depends(get_message_service)
 ):
     """Get a message by ID"""

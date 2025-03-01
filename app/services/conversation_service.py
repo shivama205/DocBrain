@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
 from app.repositories.conversation_repository import ConversationRepository
+from app.schemas.user import UserResponse
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.schemas.conversation import ConversationCreate, ConversationResponse, ConversationUpdate
 
@@ -25,21 +26,22 @@ class ConversationService:
 
     async def create_conversation(
         self,
-        conversation_data: ConversationCreate,
-        current_user: User
+        payload: ConversationCreate,
+        current_user: UserResponse
     ) -> ConversationResponse:
         """Create a new conversation"""
         try:
             # Verify knowledge base access
             await self.kb_service.get_knowledge_base(
-                conversation_data.knowledge_base_id,
+                payload.knowledge_base_id,
                 current_user
             )
             conversation = Conversation(
-                title=conversation_data.title,
-                knowledge_base_id=conversation_data.knowledge_base_id,
+                title=payload.title,
+                knowledge_base_id=payload.knowledge_base_id,
                 user_id=current_user.id
             )
+            logger.info(f"Creating conversation for user {current_user.id}")
             conversation: ConversationResponse = await self.repository.create(conversation, self.db)
             logger.info(f"Conversation {conversation.id} created by user {current_user.id}")
             return conversation
@@ -47,7 +49,7 @@ class ConversationService:
             logger.error(f"Failed to create conversation: {e}")
             raise HTTPException(status_code=500, detail=str(e))
 
-    async def list_conversations(self, current_user: User) -> List[ConversationResponse]:
+    async def list_conversations(self, current_user: UserResponse) -> List[ConversationResponse]:
         """List all conversations for the current user"""
         try:
             logger.info(f"Listing conversations for user {current_user.id}")
@@ -61,7 +63,7 @@ class ConversationService:
     async def get_conversation(
         self,
         conversation_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> ConversationResponse:
         """Get conversation details"""
         try:
@@ -80,7 +82,7 @@ class ConversationService:
         self,
         conversation_id: str,
         conversation_update: ConversationUpdate,
-        current_user: User
+        current_user: UserResponse
     ) -> ConversationResponse:
         """Update conversation details"""
         try:
@@ -108,7 +110,7 @@ class ConversationService:
     async def delete_conversation(
         self,
         conversation_id: str,
-        current_user: User
+        current_user: UserResponse
     ) -> None:
         """Delete conversation and all its messages"""
         try:
