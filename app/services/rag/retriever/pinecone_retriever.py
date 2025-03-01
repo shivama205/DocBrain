@@ -5,7 +5,7 @@ from pinecone import Pinecone
 from google import genai
 from google.genai.types import ContentEmbedding
 from app.core.config import settings
-from app.services.retriever import Retriever
+from app.services.rag.retriever.retriever import Retriever
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ from PIL import Image
 import pytesseract
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
-from docling.document_converter import PdfFormatOption, WordFormatOption, PowerPointFormatOption
+from docling.document_converter import PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 
 logger = logging.getLogger(__name__)

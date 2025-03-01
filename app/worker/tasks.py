@@ -7,8 +7,8 @@ import google.generativeai as genai
 
 from app.repositories.document_repository import DocumentRepository
 from app.db.models.knowledge_base import DocumentStatus
+from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
-from app.services.chunker import ChunkSize
 from app.repositories.message_repository import MessageRepository
 from app.core.config import settings
 
