@@ -1,6 +1,5 @@
 from typing import List, Optional
 from datetime import datetime
-from app.db.database import db
 from app.db.models.conversation import Conversation
 from app.db.models.user import User
 from app.schemas.conversation import ConversationCreate, ConversationUpdate

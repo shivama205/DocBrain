@@ -1,64 +1,78 @@
 from typing import List, Optional, Dict, Any
-from sqlalchemy import select, update, delete
+import logging
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.db.models.knowledge_base import Document
-from app.schemas.document import DocumentCreate
-from app.db.database import db
+
+logger = logging.getLogger(__name__)
 
 class DocumentRepository:
     """Repository for document operations"""
     
-    async def create(self, document_data: DocumentCreate) -> Document:
+    @staticmethod
+    async def create(document: Document, db: Session) -> Document:
         """
         Create a new document.
         
         Args:
-            document_data: Document data
+            document: Document instance
+            db: Database session
             
         Returns:
             Created document
         """
-        session = db.get_session()
-        document = Document(**document_data.dict())
-        session.add(document)
-        session.commit()
-        session.refresh(document)
-        return document
+        try:
+            db.add(document)
+            db.commit()
+            db.refresh(document)
+            return document
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to create document: {e}")
+            raise
     
-    async def get_by_id(self, document_id: str) -> Optional[Document]:
+    @staticmethod
+    async def get_by_id(document_id: str, db: Session) -> Optional[Document]:
         """
         Get a document by ID.
         
         Args:
             document_id: Document ID
+            db: Database session
             
         Returns:
             Document if found, None otherwise
         """
-        session = db.get_session()
-        query = select(Document).where(Document.id == document_id)
-        result = await session.execute(query)
-        return result.scalars().first()
+        try:
+            return db.query(Document).filter(Document.id == document_id).first()
+        except Exception as e:
+            logger.error(f"Failed to get document by ID {document_id}: {e}")
+            raise
     
-    async def get_all(self, skip: int = 0, limit: int = 100) -> List[Document]:
+    @staticmethod
+    async def list_all(db: Session, skip: int = 0, limit: int = 100) -> List[Document]:
         """
         Get all documents with pagination.
         
         Args:
+            db: Database session
             skip: Number of records to skip
             limit: Maximum number of records to return
             
         Returns:
             List of documents
         """
-        session = db.get_session()
-        query = select(Document).offset(skip).limit(limit)
-        result = await session.execute(query)
-        return result.scalars().all()
+        try:
+            return db.query(Document).offset(skip).limit(limit).all()
+        except Exception as e:
+            logger.error(f"Failed to list documents: {e}")
+            raise
     
-    async def get_by_knowledge_base(
-        self, 
-        knowledge_base_id: str, 
+    @staticmethod
+    async def list_by_knowledge_base(
+        knowledge_base_id: str,
+        db: Session,
         skip: int = 0, 
         limit: int = 100,
         status: Optional[str] = None
@@ -68,6 +82,7 @@ class DocumentRepository:
         
         Args:
             knowledge_base_id: Knowledge base ID
+            db: Database session
             skip: Number of records to skip
             limit: Maximum number of records to return
             status: Optional status filter
@@ -75,55 +90,72 @@ class DocumentRepository:
         Returns:
             List of documents
         """
-        session = db.get_session()
-        query = select(Document).where(Document.knowledge_base_id == knowledge_base_id)
-            
-        if status:
-            query = query.where(Document.status == status)
-            
-        query = query.offset(skip).limit(limit)
-        result = await session.execute(query)
-        return result.scalars().all()
+        try:
+            query = db.query(Document).filter(Document.knowledge_base_id == knowledge_base_id)
+                
+            if status:
+                query = query.filter(Document.status == status)
+                
+            return query.offset(skip).limit(limit).all()
+        except Exception as e:
+            logger.error(f"Failed to list documents for knowledge base {knowledge_base_id}: {e}")
+            raise
     
-    async def update(self, document_id: str, update_data: Dict[str, Any]) -> Optional[Document]:
+    @staticmethod
+    async def update(document_id: str, update_data: Dict[str, Any], db: Session) -> Optional[Document]:
         """
         Update a document.
         
         Args:
             document_id: Document ID
             update_data: Data to update
+            db: Database session
             
         Returns:
             Updated document if found, None otherwise
         """
-        session = db.get_session()
-        # Update document
-        query = update(Document).where(Document.id == document_id).values(**update_data)
-        await session.execute(query)
-        
-        # Get updated document
-        get_query = select(Document).where(Document.id == document_id)
-        result = await session.execute(get_query)
-        document = result.scalars().first()
-        
-        await session.commit()
-        return document
+        try:
+            # Get document
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return None
+                
+            # Update attributes
+            for key, value in update_data.items():
+                setattr(document, key, value)
+                
+            db.commit()
+            db.refresh(document)
+            return document
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update document {document_id}: {e}")
+            raise
     
-    async def delete(self, document_id: str) -> bool:
+    @staticmethod
+    async def delete(document_id: str, db: Session) -> bool:
         """
         Delete a document.
         
         Args:
             document_id: Document ID
+            db: Database session
             
         Returns:
             True if document was deleted, False otherwise
         """
-        session = db.get_session()
-        query = delete(Document).where(Document.id == document_id)
-        result = await session.execute(query)
-        await session.commit()
-        return result.rowcount > 0
+        try:
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return False
+                
+            db.delete(document)
+            db.commit()
+            return True
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to delete document {document_id}: {e}")
+            raise
     
     @classmethod
     async def get_by_id(cls, document_id: str) -> Optional[Document]:

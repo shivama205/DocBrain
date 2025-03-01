@@ -10,6 +10,7 @@ from app.db.models.knowledge_base import DocumentStatus
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
 from app.repositories.message_repository import MessageRepository
+from app.services.rag.vector_store import get_vector_store
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -213,7 +214,7 @@ Summary:"""
     autoretry_for=(Exception,),
     retry_backoff=True
 )
-def delete_document_vectors(self, document_id: str) -> None:
+def delete_document_vectors(self, document_id: str, knowledge_base_id: str = None) -> None:
     """Delete document vectors from vector store"""
     async def _process():
         from app.repositories.document_repository import DocumentRepository
@@ -221,16 +222,18 @@ def delete_document_vectors(self, document_id: str) -> None:
         try:
             logger.info(f"Starting vector deletion for document {document_id}")
             
-            # Get the document to find its knowledge base ID
-            document = await DocumentRepository.get_by_id(document_id)
-            if not document:
-                logger.warning(f"Document {document_id} not found, cannot delete vectors")
-                return True
-                
-            knowledge_base_id = document.knowledge_base_id
-            logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
+            # If knowledge_base_id is not provided, get it from the document
+            if not knowledge_base_id:
+                # Get the document to find its knowledge base ID
+                document = await DocumentRepository.get_by_id(document_id)
+                if not document:
+                    logger.warning(f"Document {document_id} not found, cannot delete vectors")
+                    return True
+                    
+                knowledge_base_id = document.knowledge_base_id
+                logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
             
-            # Create RAG service
+            # Use RAG service for deletion (which uses VectorStore internally)
             rag_service = RAGService(knowledge_base_id)
             
             # Delete document

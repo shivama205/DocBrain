@@ -1,6 +1,7 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from functools import lru_cache
+from sqlalchemy.orm import Session
 
 from app.db.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
@@ -8,6 +9,7 @@ from app.api.deps import get_current_user
 from app.services.message_service import MessageService
 from app.repositories.message_repository import MessageRepository
 from app.api.endpoints.conversations import get_conversation_service
+from app.db.database import get_db
 
 router = APIRouter()
 
@@ -18,12 +20,14 @@ def get_message_repository() -> MessageRepository:
 
 def get_message_service(
     message_repository: MessageRepository = Depends(get_message_repository),
-    conversation_service = Depends(get_conversation_service)
+    conversation_service = Depends(get_conversation_service),
+    db: Session = Depends(get_db)
 ) -> MessageService:
     """Get message service instance"""
     return MessageService(
         message_repository=message_repository,
-        conversation_service=conversation_service
+        conversation_service=conversation_service,
+        db=db
     )
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
@@ -58,5 +62,5 @@ async def get_message(
     current_user: User = Depends(get_current_user),
     message_service: MessageService = Depends(get_message_service)
 ):
-    """Get message details"""
+    """Get a message by ID"""
     return await message_service.get_message(conversation_id, message_id, current_user) 

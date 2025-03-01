@@ -1,5 +1,5 @@
 from typing import List, Optional
-from app.db.database import db
+from sqlalchemy.orm import Session
 from app.db.models.knowledge_base import KnowledgeBase, Document
 from app.db.models.conversation import Conversation
 import logging
@@ -8,80 +8,111 @@ logger = logging.getLogger(__name__)
 
 class KnowledgeBaseRepository:
     @staticmethod
-    async def create(knowledge_base: KnowledgeBase) -> KnowledgeBase:
+    async def create(knowledge_base: KnowledgeBase, db: Session) -> KnowledgeBase:
         """Create a new knowledge base"""
-        session = db.get_session()
-        session.add(knowledge_base)
-        session.commit()
-        session.refresh(knowledge_base)
-        return knowledge_base
+        try:
+            db.add(knowledge_base)
+            db.commit()
+            db.refresh(knowledge_base)
+            return knowledge_base
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to create knowledge base: {e}")
+            raise
     
     @staticmethod
-    async def get_by_id(kb_id: str) -> Optional[KnowledgeBase]:
+    async def get_by_id(kb_id: str, db: Session) -> Optional[KnowledgeBase]:
         """Get knowledge base by ID"""
-        session = db.get_session()
-        return session.get(KnowledgeBase, kb_id)
+        try:
+            return db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+        except Exception as e:
+            logger.error(f"Failed to get knowledge base by ID {kb_id}: {e}")
+            raise
     
     @staticmethod
-    async def list_all() -> List[KnowledgeBase]:
+    async def list_all(db: Session) -> List[KnowledgeBase]:
         """List all knowledge bases"""
-        session = db.get_session()
-        knowledge_bases = session.query(KnowledgeBase).all()
-        for knowledge_base in knowledge_bases:
-            session.refresh(knowledge_base)
-        return knowledge_bases
+        try:
+            return db.query(KnowledgeBase).all()
+        except Exception as e:
+            logger.error(f"Failed to list knowledge bases: {e}")
+            raise
     
     @staticmethod
-    async def list_by_owner(owner_id: str) -> List[KnowledgeBase]:
+    async def list_by_owner(owner_id: str, db: Session) -> List[KnowledgeBase]:
         """List all knowledge bases owned by a user"""
-        session = db.get_session()
-        return session.query(KnowledgeBase).filter(KnowledgeBase.owner_id == owner_id).all()
+        try:
+            return db.query(KnowledgeBase).filter(KnowledgeBase.owner_id == owner_id).all()
+        except Exception as e:
+            logger.error(f"Failed to list knowledge bases by owner {owner_id}: {e}")
+            raise
     
     @staticmethod
-    async def update(kb_id: str, update_data: dict) -> Optional[KnowledgeBase]:
+    async def update(kb_id: str, update_data: dict, db: Session) -> Optional[KnowledgeBase]:
         """Update knowledge base"""
-        session = db.get_session()
-        session.update(kb_id, update_data)
-        session.commit()
-        session.refresh(kb_id)
-        return await KnowledgeBaseRepository.get_by_id(kb_id)
+        try:
+            kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+            if not kb:
+                return None
+                
+            # Update attributes
+            for key, value in update_data.items():
+                setattr(kb, key, value)
+                
+            db.commit()
+            db.refresh(kb)
+            return kb
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to update knowledge base {kb_id}: {e}")
+            raise
     
     @staticmethod
-    async def delete(kb_id: str) -> bool:
+    async def delete(kb_id: str, db: Session) -> bool:
         """Delete knowledge base and all related data in cascade"""
         try:
             # First delete all messages in conversations
-            session = db.get_session()
-            conversations = session.query(Conversation).filter(Conversation.knowledge_base_id == kb_id).all()
+            conversations = db.query(Conversation).filter(Conversation.knowledge_base_id == kb_id).all()
             for conv in conversations:
-                session.delete(conv)
+                db.delete(conv)
             
             # Then delete all conversations
-            session.commit()
+            db.commit()
             
             # Delete all documents
-            documents = session.query(Document).filter(Document.knowledge_base_id == kb_id).all()
+            documents = db.query(Document).filter(Document.knowledge_base_id == kb_id).all()
             for doc in documents:
-                session.delete(doc)
-            session.commit()
+                db.delete(doc)
+            db.commit()
             
             # Finally delete the knowledge base itself
-            session.delete(kb_id)
-            session.commit()
+            kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+            if not kb:
+                return False
+                
+            db.delete(kb)
+            db.commit()
             return True
             
         except Exception as e:
+            db.rollback()
             logger.error(f"Failed to cascade delete knowledge base {kb_id}: {e}")
             raise
     
     @staticmethod
-    async def get_documents(kb_id: str) -> List[Document]:
+    async def get_documents(kb_id: str, db: Session) -> List[Document]:
         """Get all documents in a knowledge base"""
-        session = db.get_session()
-        return session.query(Document).filter(Document.knowledge_base_id == kb_id).all()
+        try:
+            return db.query(Document).filter(Document.knowledge_base_id == kb_id).all()
+        except Exception as e:
+            logger.error(f"Failed to get documents for knowledge base {kb_id}: {e}")
+            raise
     
     @staticmethod
-    async def list_documents_by_kb(kb_id: str) -> List[Document]:
+    async def list_documents_by_kb(kb_id: str, db: Session) -> List[Document]:
         """List all documents in a knowledge base"""
-        session = db.get_session()
-        return session.query(Document).filter(Document.knowledge_base_id == kb_id).all() 
+        try:
+            return db.query(Document).filter(Document.knowledge_base_id == kb_id).all()
+        except Exception as e:
+            logger.error(f"Failed to list documents for knowledge base {kb_id}: {e}")
+            raise 

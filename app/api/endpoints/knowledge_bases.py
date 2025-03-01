@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from functools import lru_cache
+from sqlalchemy.orm import Session
 
 from app.db.models.user import User
 from app.schemas.knowledge_base import (
@@ -14,10 +15,11 @@ from app.api.deps import get_current_user
 from app.services.knowledge_base_service import KnowledgeBaseService, LocalFileStorage
 from app.services.document_service import DocumentService
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.vector_repository import VectorRepository
+from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from app.core.config import settings
 from app.worker.celery import celery_app
+from app.db.database import get_db
 
 router = APIRouter()
 
@@ -26,47 +28,44 @@ def get_file_storage() -> LocalFileStorage:
     """Get file storage instance"""
     return LocalFileStorage(upload_dir=settings.UPLOAD_DIR)
 
-@lru_cache()
-def get_vector_repository() -> VectorRepository:
-    """Get vector repository instance"""
-    return VectorRepository()
-
-@lru_cache()
 def get_knowledge_base_repository() -> KnowledgeBaseRepository:
     """Get knowledge base repository instance"""
     return KnowledgeBaseRepository()
 
-@lru_cache()
 def get_document_repository() -> DocumentRepository:
     """Get document repository instance"""
     return DocumentRepository()
 
 def get_knowledge_base_service(
     repository: KnowledgeBaseRepository = Depends(get_knowledge_base_repository),
-    vector_repository: VectorRepository = Depends(get_vector_repository),
-    file_storage: LocalFileStorage = Depends(get_file_storage)
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: LocalFileStorage = Depends(get_file_storage),
+    db: Session = Depends(get_db)
 ) -> KnowledgeBaseService:
     """Dependency for KnowledgeBaseService"""
     return KnowledgeBaseService(
         repository=repository,
-        vector_repository=vector_repository,
+        vector_store=vector_store,
         file_storage=file_storage,
-        celery_app=celery_app
+        celery_app=celery_app,
+        db=db
     )
 
 def get_document_service(
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     document_repository: DocumentRepository = Depends(get_document_repository),
-    vector_repository: VectorRepository = Depends(get_vector_repository),
-    file_storage: LocalFileStorage = Depends(get_file_storage)
+    vector_store: VectorStore = Depends(get_vector_store),
+    file_storage: LocalFileStorage = Depends(get_file_storage),
+    db: Session = Depends(get_db)
 ) -> DocumentService:
     """Dependency for DocumentService"""
     return DocumentService(
         document_repository=document_repository,
-        vector_repository=vector_repository,
+        vector_store=vector_store,
         knowledge_base_service=kb_service,
         file_storage=file_storage,
-        celery_app=celery_app
+        celery_app=celery_app,
+        db=db
     )
 
 @router.post("", response_model=KnowledgeBaseResponse)

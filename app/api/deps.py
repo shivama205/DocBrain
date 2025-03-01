@@ -4,9 +4,11 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 
-from app.db.database import db
+from sqlalchemy.orm import Session
+from app.db.database import get_db
 from app.db.models.user import User
 from app.core.config import settings
+from app.services.user_service import UserService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
@@ -17,7 +19,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
             
-        user = db.get("users", User, user_id)
+
+        # get db 
+        db: Session = get_db()
+        user_service = UserService(db)
+        user = user_service.get_user(user_id)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
             

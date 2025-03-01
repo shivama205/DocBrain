@@ -6,6 +6,7 @@ from google.genai.types import ContentEmbedding
 from app.core.config import settings
 import logging
 import random
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -465,4 +466,10 @@ class VectorStore:
             
         except Exception as e:
             logger.error(f"Error searching chunks: {e}", exc_info=True)
-            return [] 
+            return []
+
+# Create a singleton instance of VectorStore
+@lru_cache()
+def get_vector_store() -> VectorStore:
+    """Get a singleton instance of VectorStore"""
+    return VectorStore() 

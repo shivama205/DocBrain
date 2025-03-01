@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from app.repositories.vector_repository import VectorRepository
+from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.services.rag_service import RAGService
 
 # Configure logging
@@ -8,12 +8,12 @@ logging.basicConfig(level=logging.INFO,
                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 async def test_search():
-    # Initialize repositories
-    vector_repo = VectorRepository()
-    rag_service = RAGService(vector_repo)
+    # Initialize services
+    knowledge_base_id = input("Enter knowledge base ID: ")
+    vector_store = get_vector_store()
+    rag_service = RAGService(knowledge_base_id)
     
     # Test parameters
-    knowledge_base_id = input("Enter knowledge base ID: ")
     query = input("Enter your query: ")
     similarity_threshold = float(input("Enter similarity threshold (0.0-1.0): ") or "0.5")
     
@@ -24,12 +24,12 @@ async def test_search():
     
     # Test direct vector search
     print("\n1. Testing direct vector search...")
-    embedding = await vector_repo._get_embedding(query)
+    embedding = await vector_store._get_embedding(query)
     print(f"Generated embedding with {len(embedding)} dimensions")
     
     # Query Pinecone directly
     filter = {"knowledge_base_id": {"$eq": knowledge_base_id}}
-    response = vector_repo.index.query(
+    response = vector_store.index.query(
         vector=embedding,
         filter=filter,
         top_k=10,
@@ -40,24 +40,23 @@ async def test_search():
     for i, match in enumerate(response.matches):
         print(f"Match {i+1}: score={match.score:.4f}, id={match.id}")
     
-    # Test search_chunks method
-    print("\n2. Testing search_chunks method...")
-    chunks = await vector_repo.search_chunks(
+    # Test search_similar method
+    print("\n2. Testing search_similar method...")
+    chunks = await vector_store.search_similar(
         query=query,
         knowledge_base_id=knowledge_base_id,
         top_k=10,
         similarity_threshold=similarity_threshold
     )
     
-    print(f"search_chunks returned {len(chunks)} chunks")
+    print(f"search_similar returned {len(chunks)} chunks")
     for i, chunk in enumerate(chunks):
         print(f"Chunk {i+1}: score={chunk.get('score', 'N/A'):.4f}, content={chunk.get('content', '')[:50]}...")
     
     # Test full RAG pipeline
     print("\n3. Testing full RAG pipeline...")
-    result = await rag_service.process_query(
+    result = await rag_service.retrieve(
         query=query,
-        knowledge_base_id=knowledge_base_id,
         top_k=10,
         similarity_threshold=similarity_threshold
     )

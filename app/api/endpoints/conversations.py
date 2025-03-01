@@ -2,6 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from functools import lru_cache
+from sqlalchemy.orm import Session
 
 from app.db.models.user import User
 from app.schemas.conversation import ConversationCreate, ConversationUpdate, ConversationResponse
@@ -10,6 +11,7 @@ from app.services.conversation_service import ConversationService
 from app.repositories.conversation_repository import ConversationRepository
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.api.endpoints.knowledge_bases import get_knowledge_base_service
+from app.db.database import get_db
 
 router = APIRouter()
 
@@ -20,12 +22,14 @@ def get_conversation_repository() -> ConversationRepository:
 
 def get_conversation_service(
     conversation_repository: ConversationRepository = Depends(get_conversation_repository),
-    knowledge_base_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
+    knowledge_base_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    db: Session = Depends(get_db)
 ) -> ConversationService:
     """Get conversation service instance"""
     return ConversationService(
         conversation_repository=conversation_repository,
-        knowledge_base_service=knowledge_base_service
+        knowledge_base_service=knowledge_base_service,
+        db=db
     )
 
 @router.post("", response_model=ConversationResponse)

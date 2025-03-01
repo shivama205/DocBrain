@@ -3,8 +3,8 @@ import logging
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag.chunker.chunker_factory import ChunkerFactory
 from app.services.rag.ingestor.ingestor_factory import IngestorFactory
+from app.services.rag.reranker import CrossEncoderReranker
 from app.services.rag.retriever.retriever_factory import RetrieverFactory
-from app.services.reranker import CrossEncoderReranker
 from app.services.rag.llm import GeminiLLM
 
 logger = logging.getLogger(__name__)

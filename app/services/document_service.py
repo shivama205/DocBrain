@@ -4,11 +4,12 @@ import base64
 import logging
 import aiofiles
 from celery import Celery
+from sqlalchemy.orm import Session
 
 from app.db.models.knowledge_base import Document, DocumentStatus
 from app.db.models.user import User, UserRole
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.vector_repository import VectorRepository
+from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.services.rag.chunker.chunker import DocumentType
 from app.services.knowledge_base_service import KnowledgeBaseService, FileStorage
 from app.schemas.document import DocumentCreate, DocumentUpdate
@@ -20,16 +21,18 @@ class DocumentService:
     def __init__(
         self,
         document_repository: DocumentRepository,
-        vector_repository: VectorRepository,
+        vector_store: VectorStore,
         knowledge_base_service: KnowledgeBaseService,
         file_storage: FileStorage,
-        celery_app: Celery
+        celery_app: Celery,
+        db: Session
     ):
         self.document_repository = document_repository
-        self.vector_repository = vector_repository
+        self.vector_store = vector_store
         self.kb_service = knowledge_base_service
         self.file_storage = file_storage
         self.celery_app = celery_app
+        self.db = db
 
     async def create_document(
         self,
@@ -45,26 +48,26 @@ class DocumentService:
             await self.kb_service.get_knowledge_base(kb_id, current_user)
             
             # Check the number of documents in the knowledge base
-            existing_docs = await self.document_repository.list_by_knowledge_base(kb_id)
+            existing_docs = await self.document_repository.list_by_knowledge_base(kb_id, self.db)
             if len(existing_docs) >= 20:
                 raise HTTPException(
                     status_code=400,
-                    detail="Knowledge base has reached the maximum limit of 20 documents. Please delete some documents before adding new ones."
+                    detail="Maximum number of documents (20) reached for this knowledge base"
                 )
             
-            # Save file and get content
+            # Save file temporarily and get content
             file_path = await self.file_storage.save_file(file)
             async with aiofiles.open(file_path, 'rb') as f:
                 content = await f.read()
-                
+            
             # Create document record
             document = await self._create_document_record(
                 kb_id=kb_id,
-                title=doc_data.title or file.filename,
+                title=doc_data.title,
                 file_name=file.filename,
                 content_type=file.content_type,
                 content=content,
-                user_id=current_user.id
+                user_id=str(current_user.id)
             )
             
             # Queue document processing task
@@ -73,21 +76,14 @@ class DocumentService:
                 args=[document.id]
             )
             
-            logger.info(f"Document {document.id} created and queued for processing")
             return document
             
         except Exception as e:
-            # Clean up file if needed
+            logger.error(f"Failed to create document: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+        finally:
             if file_path:
                 self.file_storage.cleanup_file(file_path)
-                
-            logger.error(f"Failed to create document: {str(e)}")
-            if isinstance(e, HTTPException):
-                raise
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to create document: {str(e)}"
-            )
 
     async def _create_document_record(
         self,
@@ -111,7 +107,7 @@ class DocumentService:
             status=DocumentStatus.PENDING,
             uploaded_by=user_id
         )
-        return await self.document_repository.create(document)
+        return await self.document_repository.create(document, self.db)
 
     def _detect_document_type(self, content_type: str) -> DocumentType:
         """Detect document type from content type"""
@@ -149,7 +145,7 @@ class DocumentService:
     ) -> Document:
         """Get document details"""
         try:
-            doc = await self.document_repository.get_by_id(doc_id)
+            doc = await self.document_repository.get_by_id(doc_id, self.db)
             if not doc:
                 raise HTTPException(status_code=404, detail="Document not found")
             
@@ -172,7 +168,7 @@ class DocumentService:
         try:
             # Check access
             await self.kb_service.get_knowledge_base(kb_id, current_user)
-            return await self.document_repository.list_by_knowledge_base(kb_id)
+            return await self.document_repository.list_by_knowledge_base(kb_id, self.db)
         except Exception as e:
             logger.error(f"Failed to list documents for knowledge base {kb_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -190,15 +186,16 @@ class DocumentService:
             kb = await self.kb_service.get_knowledge_base(doc.knowledge_base_id, current_user)
             
             # Only owner or admin can update
-            if current_user.role != UserRole.ADMIN and kb.owner_id != current_user.id:
+            if current_user.role != UserRole.ADMIN and str(kb.owner_id) != str(current_user.id):
                 raise HTTPException(status_code=403, detail="Not enough privileges")
             
             # Update document
             update_data = doc_update.model_dump(exclude_unset=True)
-            updated_doc = await self.document_repository.update(doc_id, update_data)
+            updated_doc = await self.document_repository.update(doc_id, update_data, self.db)
             if not updated_doc:
                 raise HTTPException(status_code=404, detail="Document not found")
             
+            logger.info(f"Document {doc_id} updated")
             return updated_doc
             
         except HTTPException:
@@ -212,24 +209,23 @@ class DocumentService:
         doc_id: str,
         current_user: User
     ) -> None:
-        """Delete document and its chunks"""
+        """Delete a document from a knowledge base"""
         try:
             # Get document and check access
             doc = await self.get_document(doc_id, current_user)
             kb = await self.kb_service.get_knowledge_base(doc.knowledge_base_id, current_user)
             
-            # Only owner or admin can delete
-            if current_user.role != UserRole.ADMIN and kb.owner_id != current_user.id:
+            if current_user.role != UserRole.ADMIN and str(kb.owner_id) != str(current_user.id):
                 raise HTTPException(status_code=403, detail="Not enough privileges")
             
             # Queue vector deletion task
             self.celery_app.send_task(
                 'app.worker.tasks.delete_document_vectors',
-                args=[doc.id]
+                args=[doc.id, str(doc.knowledge_base_id)]
             )
             
             # Delete document
-            await self.document_repository.delete(doc_id)
+            await self.document_repository.delete(doc_id, self.db)
             logger.info(f"Document {doc_id} deleted by user {current_user.id}")
             
         except HTTPException:
