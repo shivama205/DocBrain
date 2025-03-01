@@ -12,8 +12,10 @@ from app.repositories.conversation_repository import ConversationRepository
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.api.endpoints.knowledge_bases import get_knowledge_base_service
 from app.db.database import get_db
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @lru_cache()
 def get_conversation_repository() -> ConversationRepository:
@@ -47,6 +49,7 @@ async def list_conversations(
     conversation_service: ConversationService = Depends(get_conversation_service)
 ):
     """List all conversations for the current user"""
+    logger.info(f"Listing conversations for user {current_user.id}")
     return await conversation_service.list_conversations(current_user)
 
 @router.get("/{conversation_id}", response_model=ConversationResponse)

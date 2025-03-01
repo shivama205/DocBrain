@@ -6,6 +6,7 @@ class ConversationBase(BaseModel):
     """Base conversation attributes"""
     title: str = Field(..., description="Title of the conversation")
     knowledge_base_id: str = Field(..., description="ID of the knowledge base this conversation is linked to")
+    user_id: str = Field(..., description="ID of the user who created the conversation")
 
 class ConversationCreate(ConversationBase):
     """Attributes for creating a new conversation"""
@@ -18,6 +19,6 @@ class ConversationUpdate(BaseModel):
 class ConversationResponse(ConversationBase):
     """Response model for conversations"""
     id: str = Field(..., description="Unique identifier for the conversation")
-    owner_id: str = Field(..., description="ID of the user who created the conversation")
+    is_active: bool = Field(..., description="Whether the conversation is active")
     created_at: datetime = Field(..., description="When the conversation was created")
     updated_at: datetime = Field(..., description="When the conversation was last updated") 
