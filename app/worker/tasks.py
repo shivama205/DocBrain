@@ -7,7 +7,7 @@ import asyncio
 import google.generativeai as genai
 
 from app.repositories.document_repository import DocumentRepository
-from app.repositories.vector_repository import VectorRepository
+from app.services.retriever_factory import RetrieverFactory
 from app.models.knowledge_base import DocumentStatus
 from app.core.chunking import ChunkingStrategy, DocumentType, chunk_document_multi_level
 from app.services.rag_service import RAGService
@@ -30,7 +30,6 @@ def process_document(self, document_id: str) -> None:
     
     async def _process():
         doc_repo = DocumentRepository()
-        vector_repo = VectorRepository()
         
         try:
             # Get document
@@ -52,66 +51,51 @@ def process_document(self, document_id: str) -> None:
             # Decode content
             try:
                 logger.debug(f"Decoding content for document {document_id}")
-                content = base64.b64decode(document.content).decode('utf-8')
+                content = base64.b64decode(document.content)
             except Exception as e:
                 logger.error(f"Failed to decode document content: {e}")
                 raise ValueError(f"Invalid document content: {str(e)}")
             
-            # Generate document summary
-            logger.info(f"Generating summary for document {document_id}")
-            summary = await _generate_document_summary(content, document.title)
-            logger.info(f"Summary generated for document {document_id}")
+            # Create RAG service
+            rag_service = RAGService(document.knowledge_base_id)
             
-            # Update document with summary
-            await doc_repo.update(document_id, {"summary": summary})
-            logger.info(f"Updated document {document_id} with summary")
+            # Prepare metadata
+            metadata = {
+                "document_id": document_id,
+                "title": document.title,
+                "document_title": document.title,
+                "content_type": document.content_type,
+                "knowledge_base_id": document.knowledge_base_id,
+                "document_type": _detect_document_type(document.content_type)
+            }
             
-            # Detect document type and get chunk size once
-            doc_type = _detect_document_type(document.content_type)
-            chunk_size = _get_chunk_size_for_type(doc_type)
-            logger.info(f"Document type detected as {doc_type} with chunk size {chunk_size}")
-            
-            # Create chunking strategy
-            strategy = ChunkingStrategy.default_strategy(doc_type)
-            
-            # Chunk document
-            logger.info(f"Starting document chunking for {document_id}")
-            chunks = await chunk_document_multi_level(
+            # Ingest document
+            result = await rag_service.ingest_document(
                 content=content,
-                document_id=document_id,
-                document_title=document.title,
-                strategy=strategy
+                metadata=metadata,
+                content_type=document.content_type
             )
             
-            if not chunks:
-                logger.error(f"No chunks generated for document {document_id}")
-                raise ValueError("No chunks were generated from the document")
+            # Generate document summary
+            logger.info(f"Generating summary for document {document_id}")
+            summary = await _generate_document_summary(
+                base64.b64decode(document.content).decode('utf-8'), 
+                document.title
+            )
+            logger.info(f"Summary generated for document {document_id}")
             
-            # Log chunk size distribution
-            chunk_sizes = {}
-            for chunk in chunks:
-                size = chunk['metadata']['chunk_size']
-                chunk_sizes[size] = chunk_sizes.get(size, 0) + 1
-            logger.info(f"Generated chunks by size: {chunk_sizes}")
-            logger.info(f"Total chunks generated: {len(chunks)}")
-            
-            # Store chunks in vector store
-            logger.info(f"Storing {len(chunks)} chunks in vector store for document {document_id}")
-            await vector_repo.add_chunks(chunks, document.knowledge_base_id)
-            logger.info(f"Successfully stored chunks in vector store for document {document_id}")
-            
-            # Update document status
-            logger.info(f"Updating document {document_id} status to COMPLETED")
+            # Update document with summary and status
             await doc_repo.update(
                 document_id,
                 {
                     "status": DocumentStatus.COMPLETED,
                     "error_message": None,
-                    "processed_chunks": len(chunks)
+                    "processed_chunks": result["chunk_count"],
+                    "summary": summary
                 }
             )
             
-            logger.info(f"Document {document_id} processed successfully with {len(chunks)} chunks")
+            logger.info(f"Document {document_id} processed successfully with {result['chunk_count']} chunks")
             
         except MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for document {document_id}")
@@ -188,13 +172,33 @@ Summary:"""
 def delete_document_vectors(self, document_id: str) -> None:
     """Delete document vectors from vector store"""
     async def _process():
-        vector_repo = VectorRepository()
+        from app.repositories.document_repository import DocumentRepository
         
         try:
             logger.info(f"Starting vector deletion for document {document_id}")
-            await vector_repo.delete_document_chunks(document_id)
-            logger.info(f"Successfully deleted vectors for document {document_id}")
+            
+            # Get the document to find its knowledge base ID
+            document = await DocumentRepository.get_by_id(document_id)
+            if not document:
+                logger.warning(f"Document {document_id} not found, cannot delete vectors")
+                return True
+                
+            knowledge_base_id = document.knowledge_base_id
+            logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
+            
+            # Create RAG service
+            rag_service = RAGService(knowledge_base_id)
+            
+            # Delete document
+            success = await rag_service.delete_document(document_id)
+            
+            if success:
+                logger.info(f"Successfully deleted vectors for document {document_id} from knowledge base {knowledge_base_id}")
+            else:
+                logger.warning(f"Failed to delete vectors for document {document_id}, but continuing")
+                
             return True
+            
         except Exception as e:
             error_msg = str(e)
             logger.error(f"Failed to delete vectors for document {document_id}: {error_msg}", exc_info=True)
@@ -209,7 +213,6 @@ def delete_document_vectors(self, document_id: str) -> None:
                 logger.info(f"Marking document {document_id} vector deletion as complete despite error")
                 return True
             
-            # For other errors, let Celery handle the retry
             raise
 
     try:
@@ -246,16 +249,15 @@ def process_rag_response(
 ) -> None:
     """Process RAG response for a message"""
     async def _process():
-        rag_service = RAGService(VectorRepository())
+        # Create RAG service
+        rag_service = RAGService(knowledge_base_id)
         msg_repo = MessageRepository()
         
         try:
             # Process query through RAG pipeline
-            response = await rag_service.process_query(
+            response = await rag_service.retrieve(
                 query=query,
-                knowledge_base_id=knowledge_base_id,
                 top_k=top_k,
-                metadata_filter=None,  # No metadata filter needed
                 similarity_threshold=similarity_threshold
             )
             
