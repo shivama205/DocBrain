@@ -1,7 +1,7 @@
 from typing import Optional
 import logging
-from app.services.retriever import Retriever
-from app.services.pinecone_retriever import PineconeRetriever
+from app.services.rag.retriever.retriever import Retriever
+from app.services.rag.retriever.pinecone_retriever import PineconeRetriever
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)

@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the SQLAlchemy models and settings
 from app.core.config import settings
-from app.models.sql import BaseModel
+from app.db.base_class import Base
 
 # This is the Alembic Config object
 config = context.config
@@ -30,7 +30,7 @@ config.set_section_option(section, "DB_PORT", str(settings.MYSQL_PORT))
 config.set_section_option(section, "DB_NAME", settings.MYSQL_DATABASE)
 
 # Add your model's MetaData object here for 'autogenerate' support
-target_metadata = BaseModel.metadata
+target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""

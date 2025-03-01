@@ -1,22 +1,26 @@
-from typing import List, Optional
-from datetime import datetime
-from pydantic import Field
-from app.models.base import DBModel
+from sqlalchemy import Column, String, Text, ForeignKey, Boolean
+from sqlalchemy.orm import relationship
 
-class Conversation(DBModel):
-    title: str
-    knowledge_base_id: str
-    owner_id: str
-    created_at: str
-    updated_at: str
+from app.db.base_class import BaseModel
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "title": "Discussion about Company Policy",
-                "knowledge_base_id": "kb_123",
-                "owner_id": "user_123",
-                "created_at": "2024-02-24T12:00:00Z",
-                "updated_at": "2024-02-24T12:00:00Z"
-            }
-        } 
+class Conversation(BaseModel):
+    """Conversation SQLAlchemy model"""
+    __tablename__ = "conversations"
+    
+    title = Column(String, nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=True)
+    is_active = Column(Boolean, default=True)
+    
+    # Relationships
+    user = relationship("User", back_populates="conversations")
+    knowledge_base = relationship("KnowledgeBase", back_populates="conversations")
+    messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
+
+# Add the relationship to User model
+from app.db.models.user import User
+User.conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+
+# Add the relationship to KnowledgeBase model
+from app.db.models.knowledge_base import KnowledgeBase
+KnowledgeBase.conversations = relationship("Conversation", back_populates="knowledge_base") 

@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mysql.connector
 from passlib.context import CryptContext
 from app.core.config import settings
-from app.models.sql import User, KnowledgeBase, Document, Conversation, Message
+from app.db.models import User, KnowledgeBase, Document, Conversation, Message, UserRole, MessageRole, DocumentStatus
 from app.db.database import Base, engine, SessionLocal
 
 # Password hashing
@@ -58,9 +58,8 @@ def add_seed_data():
             email="admin@docbrain.ai",
             hashed_password=pwd_context.hash("admin123"),
             full_name="Admin User",
-            role="admin",
+            role=UserRole.ADMIN.value,
             is_verified=True,
-            api_keys=["test_api_key_1"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -73,9 +72,8 @@ def add_seed_data():
             email="test@docbrain.ai",
             hashed_password=pwd_context.hash("test123"),
             full_name="Test User",
-            role="user",
+            role=UserRole.USER.value,
             is_verified=True,
-            api_keys=["test_api_key_2"],
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -87,10 +85,7 @@ def add_seed_data():
             id=kb1_id,
             name="Technical Documentation",
             description="Repository for technical documentation and guides",
-            owner_id=admin_id,
-            shared_with=[user_id],
-            document_count=0,
-            total_size_bytes=0,
+            user_id=admin_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -101,10 +96,7 @@ def add_seed_data():
             id=kb2_id,
             name="Product Documentation",
             description="Product manuals and specifications",
-            owner_id=user_id,
-            shared_with=[admin_id],
-            document_count=0,
-            total_size_bytes=0,
+            user_id=user_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -116,14 +108,11 @@ def add_seed_data():
             id=doc1_id,
             title="Getting Started Guide",
             knowledge_base_id=kb1_id,
-            file_name="getting_started.pdf",
-            content_type="application/pdf",
             content="Sample content for getting started guide",
-            size_bytes=1024,
-            status="completed",
-            vector_ids=["vec_1", "vec_2"],
-            processed_chunks=2,
-            uploaded_by=admin_id,
+            content_type="application/pdf",
+            user_id=admin_id,
+            status=DocumentStatus.COMPLETED.value,
+            summary="This is a sample getting started guide",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -134,14 +123,11 @@ def add_seed_data():
             id=doc2_id,
             title="API Documentation",
             knowledge_base_id=kb2_id,
-            file_name="api_docs.md",
-            content_type="text/markdown",
             content="Sample content for API documentation",
-            size_bytes=2048,
-            status="completed",
-            vector_ids=["vec_3", "vec_4"],
-            processed_chunks=2,
-            uploaded_by=user_id,
+            content_type="text/markdown",
+            user_id=user_id,
+            status=DocumentStatus.COMPLETED.value,
+            summary="This is a sample API documentation",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -153,7 +139,7 @@ def add_seed_data():
             id=conv1_id,
             title="Technical Support Chat",
             knowledge_base_id=kb1_id,
-            owner_id=admin_id,
+            user_id=admin_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -164,7 +150,7 @@ def add_seed_data():
             id=conv2_id,
             title="Product Inquiry",
             knowledge_base_id=kb2_id,
-            owner_id=user_id,
+            user_id=user_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -175,8 +161,8 @@ def add_seed_data():
             id=str(uuid.uuid4()),
             conversation_id=conv1_id,
             content="How do I get started with the API?",
-            type="user",
-            status="completed",
+            role=MessageRole.USER.value,
+            user_id=admin_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )
@@ -186,9 +172,9 @@ def add_seed_data():
             id=str(uuid.uuid4()),
             conversation_id=conv1_id,
             content="Here's the API documentation guide...",
-            type="assistant",
-            sources={"document_id": doc2_id, "chunk_index": 1},
-            status="completed",
+            role=MessageRole.ASSISTANT.value,
+            user_id=admin_id,
+            document_id=doc2_id,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow()
         )

@@ -2,8 +2,8 @@ from typing import List
 from fastapi import HTTPException
 import logging
 
-from app.models.conversation import Conversation
-from app.models.user import User
+from app.db.models.conversation import Conversation
+from app.db.models.user import User
 from app.repositories.conversation_repository import ConversationRepository
 from app.services.knowledge_base_service import KnowledgeBaseService
 from app.schemas.conversation import ConversationCreate, ConversationUpdate

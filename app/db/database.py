@@ -3,10 +3,17 @@ from datetime import datetime
 import logging
 from contextlib import contextmanager
 from sqlalchemy import create_engine, MetaData
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 from pydantic import BaseModel
 from app.core.config import settings
+
+# Import the base class and models
+from app.db.base_class import Base
+from app.db.models.user import User
+from app.db.models.knowledge_base import KnowledgeBase, Document
+from app.db.models.conversation import Conversation
+from app.db.models.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +31,6 @@ engine = create_engine(
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Create base class for declarative models
-Base = declarative_base()
 
 class Database:
     def __init__(self):
@@ -161,15 +165,12 @@ class Database:
 
     def _get_db_model_class(self, table: str):
         """Get the SQLAlchemy model class for a table"""
-        # This will be implemented with actual model mappings
-        from app.models.sql import users, knowledge_bases, documents, conversations, messages
-        
         models = {
-            'users': users.User,
-            'knowledge_bases': knowledge_bases.KnowledgeBase,
-            'documents': documents.Document,
-            'conversations': conversations.Conversation,
-            'messages': messages.Message
+            'users': User,
+            'knowledge_bases': KnowledgeBase,
+            'documents': Document,
+            'conversations': Conversation,
+            'messages': Message
         }
         return models[table]
 

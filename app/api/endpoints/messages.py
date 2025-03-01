@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from functools import lru_cache
 
-from app.models.user import User
+from app.db.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
 from app.api.deps import get_current_user
 from app.services.message_service import MessageService

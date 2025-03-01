@@ -7,8 +7,8 @@ import os
 import aiofiles
 from celery import Celery
 
-from app.models.knowledge_base import KnowledgeBase, Document, DocumentStatus
-from app.models.user import User, UserRole
+from app.db.models.knowledge_base import KnowledgeBase, Document, DocumentStatus
+from app.db.models.user import User, UserRole
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from app.repositories.vector_repository import VectorRepository
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate

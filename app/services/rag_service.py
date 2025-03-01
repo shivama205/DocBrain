@@ -1,15 +1,11 @@
-from typing import List, Dict, Any, Optional, Tuple, Union, BinaryIO
+from typing import Dict, Any, Optional, Union
 import logging
-import base64
-from app.services.ingestor import Ingestor
-from app.services.ingestor_factory import IngestorFactory
-from app.services.chunker import Chunker, ChunkSize, DocumentType
-from app.services.chunker_factory import ChunkerFactory
-from app.services.retriever import Retriever
-from app.services.retriever_factory import RetrieverFactory
-from app.services.reranker import Reranker, CrossEncoderReranker
-from app.services.llm import LLM, GeminiLLM
-from app.core.config import settings
+from app.services.rag.chunker.chunker import ChunkSize
+from app.services.rag.chunker.chunker_factory import ChunkerFactory
+from app.services.rag.ingestor.ingestor_factory import IngestorFactory
+from app.services.rag.retriever.retriever_factory import RetrieverFactory
+from app.services.reranker import CrossEncoderReranker
+from app.services.llm import GeminiLLM
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,6 @@
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional
+from pydantic import BaseModel
 from datetime import datetime
-from uuid import UUID
 
 class DocumentBase(BaseModel):
     """Base document schema"""

@@ -1,8 +1,8 @@
 from typing import List, Optional
 from app.db.database import db
-from app.models.knowledge_base import KnowledgeBase, Document
-from app.models.conversation import Conversation
-from app.models.message import Message
+from app.db.models.knowledge_base import KnowledgeBase, Document
+from app.db.models.conversation import Conversation
+from app.db.models.message import Message
 import logging
 
 logger = logging.getLogger(__name__)

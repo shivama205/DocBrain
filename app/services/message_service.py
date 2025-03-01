@@ -3,8 +3,8 @@ from fastapi import HTTPException, BackgroundTasks
 import logging
 from datetime import datetime
 
-from app.models.message import Message
-from app.models.user import User
+from app.db.models.message import Message
+from app.db.models.user import User
 from app.repositories.message_repository import MessageRepository
 from app.services.conversation_service import ConversationService
 from app.worker.celery import celery_app

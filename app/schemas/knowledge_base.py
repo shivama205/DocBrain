@@ -1,7 +1,7 @@
 from typing import List, Optional
 from pydantic import BaseModel
 
-from app.models.knowledge_base import DocumentStatus
+from app.db.models.knowledge_base import DocumentStatus
 
 class KnowledgeBaseBase(BaseModel):
     name: str

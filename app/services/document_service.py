@@ -5,13 +5,13 @@ import logging
 import aiofiles
 from celery import Celery
 
-from app.models.knowledge_base import Document, DocumentStatus
-from app.models.user import User, UserRole
+from app.db.models.knowledge_base import Document, DocumentStatus
+from app.db.models.user import User, UserRole
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.vector_repository import VectorRepository
+from app.services.rag.chunker.chunker import DocumentType
 from app.services.knowledge_base_service import KnowledgeBaseService, FileStorage
 from app.schemas.document import DocumentCreate, DocumentUpdate
-from app.core.chunking import DocumentType
 
 # Set up logging
 logger = logging.getLogger(__name__)

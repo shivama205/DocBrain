@@ -1,7 +1,7 @@
 from typing import List, Optional
 from fastapi import HTTPException
 from app.core.security import get_password_hash, verify_password
-from app.models.user import User, UserRole
+from app.db.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserCreate, UserUpdate
 

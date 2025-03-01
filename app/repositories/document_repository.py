@@ -1,11 +1,9 @@
 from typing import List, Optional, Dict, Any
 from sqlalchemy import select, update, delete
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.db.session import get_db
-from app.models.knowledge_base import Document, DocumentStatus
-from app.schemas.document import DocumentCreate, DocumentUpdate
+from app.db.models.knowledge_base import Document
+from app.schemas.document import DocumentCreate
+from app.db.database import db
 
 class DocumentRepository:
     """Repository for document operations"""
@@ -20,11 +18,11 @@ class DocumentRepository:
         Returns:
             Created document
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             document = Document(**document_data.dict())
-            db.add(document)
-            await db.commit()
-            await db.refresh(document)
+            session.add(document)
+            await session.commit()
+            await session.refresh(document)
             return document
     
     async def get_by_id(self, document_id: str) -> Optional[Document]:
@@ -37,9 +35,9 @@ class DocumentRepository:
         Returns:
             Document if found, None otherwise
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             query = select(Document).where(Document.id == document_id)
-            result = await db.execute(query)
+            result = await session.execute(query)
             return result.scalars().first()
     
     async def get_all(self, skip: int = 0, limit: int = 100) -> List[Document]:
@@ -53,9 +51,9 @@ class DocumentRepository:
         Returns:
             List of documents
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             query = select(Document).offset(skip).limit(limit)
-            result = await db.execute(query)
+            result = await session.execute(query)
             return result.scalars().all()
     
     async def get_by_knowledge_base(
@@ -77,14 +75,14 @@ class DocumentRepository:
         Returns:
             List of documents
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             query = select(Document).where(Document.knowledge_base_id == knowledge_base_id)
             
             if status:
                 query = query.where(Document.status == status)
                 
             query = query.offset(skip).limit(limit)
-            result = await db.execute(query)
+            result = await session.execute(query)
             return result.scalars().all()
     
     async def update(self, document_id: str, update_data: Dict[str, Any]) -> Optional[Document]:
@@ -98,17 +96,17 @@ class DocumentRepository:
         Returns:
             Updated document if found, None otherwise
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             # Update document
             query = update(Document).where(Document.id == document_id).values(**update_data)
-            await db.execute(query)
+            await session.execute(query)
             
             # Get updated document
             get_query = select(Document).where(Document.id == document_id)
-            result = await db.execute(get_query)
+            result = await session.execute(get_query)
             document = result.scalars().first()
             
-            await db.commit()
+            await session.commit()
             return document
     
     async def delete(self, document_id: str) -> bool:
@@ -121,10 +119,10 @@ class DocumentRepository:
         Returns:
             True if document was deleted, False otherwise
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             query = delete(Document).where(Document.id == document_id)
-            result = await db.execute(query)
-            await db.commit()
+            result = await session.execute(query)
+            await session.commit()
             return result.rowcount > 0
     
     @classmethod
@@ -138,7 +136,7 @@ class DocumentRepository:
         Returns:
             Document if found, None otherwise
         """
-        async with get_db() as db:
+        async with db.get_session() as session:
             query = select(Document).where(Document.id == document_id)
-            result = await db.execute(query)
+            result = await session.execute(query)
             return result.scalars().first() 

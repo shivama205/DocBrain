@@ -1,11 +1,7 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
-from app.services.chunker import (
-    Chunker,
-    SingleChunker,
-    MultiLevelChunker,
-    DocumentType
-)
+
+from app.services.rag.chunker.chunker import Chunker, DocumentType, MultiLevelChunker, SingleChunker
 
 logger = logging.getLogger(__name__)
 

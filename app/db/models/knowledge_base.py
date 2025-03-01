@@ -5,7 +5,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from app.db.base_class import Base
+from app.db.base_class import BaseModel
 
 class DocumentStatus(str, enum.Enum):
     """Document processing status"""
@@ -14,38 +14,32 @@ class DocumentStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
-class KnowledgeBase(Base):
+class KnowledgeBase(BaseModel):
     """Knowledge base model"""
     __tablename__ = "knowledge_bases"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
     
     # Relationships
     documents = relationship("Document", back_populates="knowledge_base", cascade="all, delete-orphan")
     user = relationship("User", back_populates="knowledge_bases")
 
-class Document(Base):
+class Document(BaseModel):
     """Document model"""
     __tablename__ = "documents"
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     content = Column(Text, nullable=False)  # Base64 encoded content
     content_type = Column(String, nullable=False)
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    status = Column(String, default=DocumentStatus.PENDING)
+    status = Column(String, default=DocumentStatus.PENDING.value)
     error_message = Column(Text, nullable=True)
     processed_chunks = Column(Integer, nullable=True)
     summary = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())
     
     # Relationships
     knowledge_base = relationship("KnowledgeBase", back_populates="documents")

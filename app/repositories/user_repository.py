@@ -1,13 +1,13 @@
 from typing import List, Optional
 import logging
 from app.db.database import db
-from app.models.user import User
+from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 logger = logging.getLogger(__name__)
 
 class UserRepository:
     @staticmethod
-    async def create(user: User) -> User:
+    async def create(user: UserCreate) -> UserResponse:
         """Create a new user"""
         try:
             return db.create("users", user)
@@ -16,39 +16,39 @@ class UserRepository:
             raise
     
     @staticmethod
-    async def get_by_id(user_id: str) -> Optional[User]:
+    async def get_by_id(user_id: str) -> Optional[UserResponse]:
         """Get user by ID"""
         try:
-            return db.get("users", User, user_id)
+            return db.get("users", UserResponse, user_id)
         except Exception as e:
             logger.error(f"Failed to get user by ID {user_id}: {e}")
             raise
     
     @staticmethod
-    async def get_by_email(email: str) -> Optional[User]:
+    async def get_by_email(email: str) -> Optional[UserResponse]:
         """Get user by email"""
         try:
             # Use filter_dict to query by email (DuckDB will use the UNIQUE index)
-            users = db.list("users", User, {"email": email})
+            users = db.list("users", UserResponse, {"email": email})
             return users[0] if users else None
         except Exception as e:
             logger.error(f"Failed to get user by email {email}: {e}")
             raise
     
     @staticmethod
-    async def list_all() -> List[User]:
+    async def list_all() -> List[UserResponse]:
         """List all users"""
         try:
-            return db.list("users", User)
+            return db.list("users", UserResponse)
         except Exception as e:
             logger.error(f"Failed to list users: {e}")
             raise
     
     @staticmethod
-    async def update(user_id: str, update_data: dict) -> Optional[User]:
+    async def update(user_id: str, update_data: UserUpdate) -> Optional[UserResponse]:
         """Update user"""
         try:
-            if db.update("users", user_id, update_data):
+            if db.update("users", user_id, update_data.model_dump(exclude_unset=True)):
                 return await UserRepository.get_by_id(user_id)
             return None
         except Exception as e:

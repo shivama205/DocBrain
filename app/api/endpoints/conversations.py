@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from functools import lru_cache
 
-from app.models.user import User
+from app.db.models.user import User
 from app.schemas.conversation import ConversationCreate, ConversationUpdate, ConversationResponse
 from app.api.deps import get_current_user
 from app.services.conversation_service import ConversationService

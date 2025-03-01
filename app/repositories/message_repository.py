@@ -1,9 +1,9 @@
 from typing import List, Optional
 import json
 from app.db.database import db
-from app.models.message import Message
-from app.models.conversation import Conversation
-from app.models.user import User
+from app.db.models.message import Message
+from app.db.models.conversation import Conversation
+from app.db.models.user import User
 from app.schemas.message import MessageCreate, MessageType
 
 class MessageRepository:

@@ -1,14 +1,9 @@
 from typing import Dict, Any, Optional
 import logging
 import mimetypes
-from app.services.ingestor import (
-    Ingestor,
-    PDFIngestor,
-    CSVIngestor,
-    MarkdownIngestor,
-    ImageIngestor,
-    TextIngestor
-)
+
+from app.services.rag.ingestor.ingestor import CSVIngestor, ImageIngestor, Ingestor, MarkdownIngestor, PDFIngestor, TextIngestor
+
 
 logger = logging.getLogger(__name__)
 

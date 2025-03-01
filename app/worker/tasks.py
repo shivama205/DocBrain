@@ -1,18 +1,13 @@
 from celery import shared_task
 import base64
 import logging
-from typing import Dict, Any
 from celery.exceptions import MaxRetriesExceededError
 import asyncio
 import google.generativeai as genai
 
 from app.repositories.document_repository import DocumentRepository
-from app.services.retriever_factory import RetrieverFactory
-from app.models.knowledge_base import DocumentStatus
-from app.core.chunking import ChunkingStrategy, DocumentType, chunk_document_multi_level
+from app.db.models.knowledge_base import DocumentStatus
 from app.services.rag_service import RAGService
-from app.services.ingestor_factory import IngestorFactory
-from app.services.chunker_factory import ChunkerFactory
 from app.services.chunker import ChunkSize
 from app.repositories.message_repository import MessageRepository
 from app.core.config import settings

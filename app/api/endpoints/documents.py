@@ -4,12 +4,12 @@ import logging
 import base64
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import get_db
-from app.models.knowledge_base import Document, DocumentStatus
+from app.db.database import get_db
+from app.db.models.knowledge_base import DocumentStatus
 from app.repositories.document_repository import DocumentRepository
 from app.worker.tasks import process_document
 from app.api.deps import get_current_user
-from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.schemas.document import DocumentCreate, DocumentResponse
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
