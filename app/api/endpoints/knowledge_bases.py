@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from functools import lru_cache
@@ -71,7 +71,7 @@ def get_document_service(
 @router.post("", response_model=KnowledgeBaseResponse)
 async def create_knowledge_base(
     kb: KnowledgeBaseCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """Create a new knowledge base"""
@@ -79,7 +79,7 @@ async def create_knowledge_base(
 
 @router.get("", response_model=List[KnowledgeBaseResponse])
 async def list_knowledge_bases(
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """List all knowledge bases accessible to the user"""
@@ -88,7 +88,7 @@ async def list_knowledge_bases(
 @router.get("/{kb_id}", response_model=KnowledgeBaseResponse)
 async def get_knowledge_base(
     kb_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """Get knowledge base details"""
@@ -98,7 +98,7 @@ async def get_knowledge_base(
 async def update_knowledge_base(
     kb_id: str,
     kb_update: KnowledgeBaseUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """Update knowledge base"""
@@ -107,7 +107,7 @@ async def update_knowledge_base(
 @router.delete("/{kb_id}")
 async def delete_knowledge_base(
     kb_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """Delete knowledge base and all its documents"""
@@ -118,7 +118,7 @@ async def delete_knowledge_base(
 async def share_knowledge_base(
     kb_id: str,
     user_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
 ):
     """Share knowledge base with another user"""
@@ -130,7 +130,7 @@ async def create_document(
     kb_id: str,
     title: str = Form(description="Document title"),
     file: UploadFile = File(description="File to upload"),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Upload a new document to a knowledge base"""
@@ -140,7 +140,7 @@ async def create_document(
 @router.get("/{kb_id}/documents", response_model=List[DocumentResponse])
 async def list_documents(
     kb_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """List all documents in a knowledge base"""
@@ -150,7 +150,7 @@ async def list_documents(
 async def get_document(
     kb_id: str,
     doc_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Get document details"""
@@ -158,10 +158,9 @@ async def get_document(
 
 @router.put("/{kb_id}/documents/{doc_id}", response_model=DocumentResponse)
 async def update_document(
-    kb_id: str,
     doc_id: str,
     doc_update: DocumentUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Update document details"""
@@ -169,9 +168,8 @@ async def update_document(
 
 @router.delete("/{kb_id}/documents/{doc_id}")
 async def delete_document(
-    kb_id: str,
     doc_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Delete a document"""

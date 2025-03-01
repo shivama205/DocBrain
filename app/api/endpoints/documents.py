@@ -94,16 +94,16 @@ async def get_document(
     """
     return await doc_service.get_document(document_id, current_user)
 
-@router.get("/", response_model=List[DocumentResponse])
-async def list_documents(
-    knowledge_base_id: str,
-    current_user: User = Depends(get_current_user),
-    doc_service: DocumentService = Depends(get_document_service)
-):
-    """
-    List all documents in a knowledge base.
-    """
-    return await doc_service.list_documents(knowledge_base_id, current_user)
+# @router.get("/", response_model=List[DocumentResponse])
+# async def list_documents(
+#     knowledge_base_id: str,
+#     current_user: User = Depends(get_current_user),
+#     doc_service: DocumentService = Depends(get_document_service)
+# ):
+#     """
+#     List all documents in a knowledge base.
+#     """
+#     return await doc_service.list_documents(knowledge_base_id, current_user)
 
 @router.put("/{document_id}", response_model=DocumentResponse)
 async def update_document(

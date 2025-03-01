@@ -6,9 +6,8 @@ from app.db.models.knowledge_base import DocumentStatus
 from app.schemas.user import UserResponse
 
 class KnowledgeBaseBase(BaseModel):
-    name: str
-    description: str
-    user_id: str
+    name: str = Field(..., alias="name")
+    description: str = Field(..., alias="description")
 
 class KnowledgeBaseCreate(KnowledgeBaseBase):
     pass
@@ -19,6 +18,7 @@ class KnowledgeBaseUpdate(BaseModel):
 
 class KnowledgeBaseResponse(KnowledgeBaseBase):
     id: str
+    user_id: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     user: Optional[UserResponse] = Annotated[None, Field(exclude=True)]

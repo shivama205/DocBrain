@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.db.models.knowledge_base import Document
+from app.schemas.document import DocumentResponse
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class DocumentRepository:
         skip: int = 0, 
         limit: int = 100,
         status: Optional[str] = None
-    ) -> List[Document]:
+    ) -> List[DocumentResponse]:
         """
         Get documents by knowledge base ID with optional status filter.
         
@@ -96,7 +97,7 @@ class DocumentRepository:
             if status:
                 query = query.filter(Document.status == status)
                 
-            return query.offset(skip).limit(limit).all()
+            return [DocumentResponse.model_validate(doc) for doc in query.offset(skip).limit(limit).all()]
         except Exception as e:
             logger.error(f"Failed to list documents for knowledge base {knowledge_base_id}: {e}")
             raise

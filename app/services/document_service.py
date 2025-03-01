@@ -12,7 +12,7 @@ from app.repositories.document_repository import DocumentRepository
 from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.services.rag.chunker.chunker import DocumentType
 from app.services.knowledge_base_service import KnowledgeBaseService, FileStorage
-from app.schemas.document import DocumentCreate, DocumentUpdate
+from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -163,7 +163,7 @@ class DocumentService:
         self,
         kb_id: str,
         current_user: User
-    ) -> List[Document]:
+    ) -> List[DocumentResponse]:
         """List all documents in a knowledge base"""
         try:
             # Check access
