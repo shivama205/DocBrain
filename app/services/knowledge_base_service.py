@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.models.knowledge_base import KnowledgeBase, Document, DocumentStatus
 from app.db.models.user import User, UserRole
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
-from app.services.rag.vector_store import VectorStore, get_vector_store
+from app.services.rag.vector_store import VectorStore
 from app.schemas.knowledge_base import KnowledgeBaseCreate, KnowledgeBaseUpdate
 from app.schemas.document import DocumentCreate, DocumentUpdate
 
@@ -57,7 +57,7 @@ class KnowledgeBaseService:
         self,
         repository: KnowledgeBaseRepository,
         vector_store: VectorStore,
-        file_storage: FileStorage,
+        file_storage: LocalFileStorage,
         celery_app: Celery,
         db: Session
     ):
@@ -74,11 +74,14 @@ class KnowledgeBaseService:
     ) -> KnowledgeBase:
         """Create a new knowledge base"""
         try:
-            kb = self.repository.create(
-                self.db,
+            knowledge_base = KnowledgeBase(
                 name=kb_data.name,
                 description=kb_data.description,
                 owner_id=str(current_user.id)
+            )
+            kb = await self.repository.create(
+                knowledge_base,
+                self.db
             )
             return kb
         except Exception as e:
@@ -197,9 +200,9 @@ class KnowledgeBaseService:
     ) -> List[KnowledgeBase]:
         """List all knowledge bases accessible to the user"""
         if current_user.role == UserRole.ADMIN:
-            return self.repository.list_all(self.db)
+            return await self.repository.list_all(self.db)
         else:
-            return self.repository.list_by_owner(self.db, str(current_user.id))
+            return await self.repository.list_by_owner(current_user.id, self.db)
 
     async def list_documents(
         self,
@@ -210,7 +213,7 @@ class KnowledgeBaseService:
         try:
             # Check access
             await self.get_knowledge_base(kb_id, current_user)
-            return await self.repository.list_documents_by_kb(self.db, kb_id)
+            return await self.repository.list_documents_by_kb(kb_id, self.db)
         except Exception as e:
             logger.error(f"Failed to list documents for knowledge base {kb_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -222,7 +225,7 @@ class KnowledgeBaseService:
         current_user: User
     ) -> KnowledgeBase:
         """Update a knowledge base"""
-        kb = self.repository.get_by_id(self.db, kb_id)
+        kb = self.repository.get_by_id(kb_id, self.db)
         if not kb:
             raise HTTPException(status_code=404, detail="Knowledge base not found")
         
@@ -279,7 +282,7 @@ class KnowledgeBaseService:
         current_user: User
     ) -> None:
         """Delete a knowledge base and all its documents"""
-        kb = self.repository.get_by_id(self.db, kb_id)
+        kb = self.repository.get_by_id(kb_id, self.db)
         if not kb:
             raise HTTPException(status_code=404, detail="Knowledge base not found")
         
@@ -289,7 +292,7 @@ class KnowledgeBaseService:
         
         try:
             # Delete all documents in the knowledge base
-            documents = self.repository.get_documents(self.db, kb_id)
+            documents = self.repository.get_documents(kb_id, self.db)
             for doc in documents:
                 # Delete document vectors
                 await self.vector_store.delete_document_chunks(doc.id, kb_id)
@@ -299,7 +302,7 @@ class KnowledgeBaseService:
                     self.file_storage.cleanup_file(doc.file_path)
             
             # Delete the knowledge base (this will cascade delete documents)
-            self.repository.delete(self.db, kb_id)
+            self.repository.delete(kb_id, self.db)
         except Exception as e:
             logger.error(f"Error deleting knowledge base: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to delete knowledge base: {str(e)}")
@@ -325,7 +328,7 @@ class KnowledgeBaseService:
             )
             
             # Delete document
-            await self.repository.delete_document(self.db, doc_id)
+            await self.repository.delete_document(doc_id, self.db)
             logger.info(f"Document {doc_id} deleted by user {current_user.id}")
             
         except HTTPException:

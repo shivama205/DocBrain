@@ -1,11 +1,12 @@
-from typing import List, Optional
-from pydantic import BaseModel
+from typing import Annotated, Any, List, Optional
+from pydantic import BaseModel, Field
 
 from app.db.models.knowledge_base import DocumentStatus
 
 class KnowledgeBaseBase(BaseModel):
     name: str
     description: str
+    user_id: str
 
 class KnowledgeBaseCreate(KnowledgeBaseBase):
     pass
@@ -16,10 +17,10 @@ class KnowledgeBaseUpdate(BaseModel):
 
 class KnowledgeBaseResponse(KnowledgeBaseBase):
     id: str
-    owner_id: str
-    shared_with: List[str]
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    documents: List[Any] = Annotated[list, Field(default_factory=list, exclude=True)]
+    user: Annotated[None, Field(exclude=True)]
 
     class Config:
         from_attributes = True

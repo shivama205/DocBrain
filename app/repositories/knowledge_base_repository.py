@@ -4,51 +4,58 @@ from app.db.models.knowledge_base import KnowledgeBase, Document
 from app.db.models.conversation import Conversation
 import logging
 
+from app.schemas.knowledge_base import KnowledgeBaseResponse
+
 logger = logging.getLogger(__name__)
 
 class KnowledgeBaseRepository:
     @staticmethod
-    async def create(knowledge_base: KnowledgeBase, db: Session) -> KnowledgeBase:
+    async def create(knowledge_base: KnowledgeBase, db: Session) -> KnowledgeBaseResponse:
         """Create a new knowledge base"""
         try:
             db.add(knowledge_base)
             db.commit()
             db.refresh(knowledge_base)
-            return knowledge_base
+            return KnowledgeBaseResponse.model_validate(knowledge_base)
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to create knowledge base: {e}")
             raise
     
     @staticmethod
-    async def get_by_id(kb_id: str, db: Session) -> Optional[KnowledgeBase]:
+    async def get_by_id(kb_id: str, db: Session) -> Optional[KnowledgeBaseResponse]:
         """Get knowledge base by ID"""
         try:
-            return db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+            kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
+            if not kb:
+                return None
+            return KnowledgeBaseResponse.model_validate(kb)
         except Exception as e:
             logger.error(f"Failed to get knowledge base by ID {kb_id}: {e}")
             raise
     
     @staticmethod
-    async def list_all(db: Session) -> List[KnowledgeBase]:
+    async def list_all(db: Session) -> List[KnowledgeBaseResponse]:
         """List all knowledge bases"""
         try:
-            return db.query(KnowledgeBase).all()
+            knowledge_bases = db.query(KnowledgeBase).all()
+            return [KnowledgeBaseResponse.model_validate(kb) for kb in knowledge_bases]
         except Exception as e:
             logger.error(f"Failed to list knowledge bases: {e}")
             raise
     
     @staticmethod
-    async def list_by_owner(owner_id: str, db: Session) -> List[KnowledgeBase]:
+    async def list_by_owner(owner_id: str, db: Session) -> List[KnowledgeBaseResponse]:
         """List all knowledge bases owned by a user"""
         try:
-            return db.query(KnowledgeBase).filter(KnowledgeBase.owner_id == owner_id).all()
+            knowledge_bases = db.query(KnowledgeBase).filter(KnowledgeBase.user_id == owner_id).all()
+            return [KnowledgeBaseResponse.model_validate(kb) for kb in knowledge_bases]
         except Exception as e:
             logger.error(f"Failed to list knowledge bases by owner {owner_id}: {e}")
             raise
     
     @staticmethod
-    async def update(kb_id: str, update_data: dict, db: Session) -> Optional[KnowledgeBase]:
+    async def update(kb_id: str, update_data: dict, db: Session) -> Optional[KnowledgeBaseResponse]:
         """Update knowledge base"""
         try:
             kb = db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id).first()
@@ -61,7 +68,7 @@ class KnowledgeBaseRepository:
                 
             db.commit()
             db.refresh(kb)
-            return kb
+            return KnowledgeBaseResponse.model_validate(kb)
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to update knowledge base {kb_id}: {e}")
