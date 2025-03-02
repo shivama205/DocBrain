@@ -3,11 +3,14 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from enum import Enum
 
+from app.db.models.message import MessageContentType, MessageKind, MessageStatus
+
 class MessageType(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
 
-class Source(BaseModel):
+
+class MessageSource(BaseModel):
     """Source document information"""
     score: float = Field(..., description="Relevance score of the source")
     document_id: str = Field(..., description="ID of the source document")
@@ -18,20 +21,29 @@ class Source(BaseModel):
 class MessageBase(BaseModel):
     """Base message attributes"""
     content: str = Field(..., description="Content of the message")
-    type: MessageType = Field(..., description="Type of message (user/assistant)")
+    content_type: MessageContentType = Field(..., description="Type of message (TEXT/IMAGE/AUDIO/VIDEO/DOCUMENT)")
+    conversation_id: str = Field(..., description="ID of the conversation this message belongs to")
+    knowledge_base_id: str = Field(..., description="ID of the knowledge base this message belongs to")
+
+class ProcessedMessageSchema(BaseModel):
+    """Processed message attributes"""
+    content: str
+    content_type: MessageContentType
+    sources: List[MessageSource]
 
 class MessageCreate(MessageBase):
     """Attributes for creating a new message"""
-    top_k: int = Field(5, description="Number of most relevant chunks to return", ge=1, le=20)
-    similarity_cutoff: float = Field(0.3, description="Minimum similarity score for results", ge=0, le=1)
+    pass
 
 class MessageResponse(MessageBase):
     """Response model for messages"""
     id: str = Field(..., description="Unique identifier for the message")
-    conversation_id: str = Field(..., description="ID of the conversation this message belongs to")
-    sources: Optional[List[Source]] = Field(None, description="Source documents used for assistant's response")
+    kind: MessageKind = Field(..., description="Kind of message (USER/ASSISTANT/SYSTEM)")
+    sources: Optional[List[MessageSource]] = Field(None, description="Source documents used for assistant's response")
+    user_id: str = Field(..., description="ID of the user who created the message")
+    status: MessageStatus = Field(..., description="Status of the message (RECEIVED/PROCESSING/SENT/FAILED)")
     created_at: datetime = Field(..., description="When the message was created")
-    status: str = Field(..., description="Status of the message processing (processing/completed/failed)")
+    updated_at: datetime = Field(..., description="When the message was last updated")
 
 class MessageProcessingResponse(BaseModel):
     """Response for asynchronous message processing"""

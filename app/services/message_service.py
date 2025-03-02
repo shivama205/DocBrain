@@ -1,10 +1,9 @@
 from typing import List
 from fastapi import HTTPException
 import logging
-from datetime import datetime
 from sqlalchemy.orm import Session
 
-from app.db.models.message import Message
+from app.db.models.message import Message, MessageContentType, MessageKind, MessageStatus
 from app.repositories.message_repository import MessageRepository
 from app.schemas.user import UserResponse
 from app.services.conversation_service import ConversationService
@@ -42,8 +41,11 @@ class MessageService:
             # Create user message
             message = Message(
                 conversation_id=conversation_id,
+                knowledge_base_id=conversation.knowledge_base_id,
                 content=message_data.content,
-                type=MessageType.USER,
+                content_type=self._map_content_type(message_data.content_type),
+                kind=MessageKind.USER,
+                status=MessageStatus.RECEIVED,
                 user_id=current_user.id
             )
             user_message = await self.repository.create(
@@ -53,33 +55,27 @@ class MessageService:
             logger.info(f"User message {user_message.id} created in conversation {conversation_id}")
 
             # Create assistant message
-            response_message = Message(
+            message = Message(
                 conversation_id=conversation_id,
+                knowledge_base_id=conversation.knowledge_base_id,
                 content="",
-                type=MessageType.ASSISTANT,
+                content_type=MessageContentType.TEXT,
+                kind=MessageKind.ASSISTANT,
+                status=MessageStatus.PROCESSING,
                 user_id=current_user.id
             )
-            assistant_message_data = MessageCreate(
-                content="",
-                type=MessageType.ASSISTANT,
-                top_k=message_data.top_k,
-                similarity_cutoff=message_data.similarity_cutoff
-            )
             assistant_message = await self.repository.create(
-                response_message,
+                message,
                 self.db
             )
             logger.info(f"Assistant message {assistant_message.id} created in conversation {conversation_id}")
 
             # Queue RAG processing task
             celery_app.send_task(
-                'app.worker.tasks.process_rag_response',
+                'app.worker.tasks.initiate_rag_retrieval',
                 args=[
-                    assistant_message.id,
-                    message_data.content,
-                    conversation.knowledge_base_id,
-                    message_data.top_k,
-                    message_data.similarity_cutoff
+                    user_message.id,
+                    assistant_message.id
                 ]
             )
 

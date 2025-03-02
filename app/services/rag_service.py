@@ -15,42 +15,22 @@ class RAGService:
     chunking, retrieval, reranking, and answer generation.
     """
     
-    def __init__(
-        self,
-        knowledge_base_id: str,
-        use_reranker: bool = True,
-        reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2",
-        llm_model: str = "gemini-2.0-flash"
-    ):
-        """
-        Initialize the RAG service.
-        
-        Args:
-            knowledge_base_id: ID of the knowledge base to use
-            use_reranker: Whether to use reranking
-            reranker_model: Name of the reranker model to use
-            llm_model: Name of the LLM model to use
-        """
+    def __init__(self, use_reranker: bool = True, reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", llm_model: str = "gemini-2.0-flash"):
+        """Initialize the RAG service. All methods now receive knowledge_base_id as a parameter where needed."""
         try:
-            logger.info(f"Initializing RAG service for knowledge base {knowledge_base_id}")
-            
-            # Create retriever
-            self.retriever = RetrieverFactory.create_retriever(knowledge_base_id)
-            
-            # Create reranker if enabled
+            logger.info("Initializing RAG service")
+
             self.use_reranker = use_reranker
             if use_reranker:
                 logger.info(f"Initializing reranker with model {reranker_model}")
                 self.reranker = CrossEncoderReranker(reranker_model)
             else:
                 self.reranker = None
-            
-            # Create LLM
+
             logger.info(f"Initializing LLM with model {llm_model}")
             self.llm = GeminiLLM(llm_model)
-            
+
             logger.info("RAG service initialized successfully")
-            
         except Exception as e:
             logger.error(f"Failed to initialize RAG service: {e}", exc_info=True)
             raise
@@ -99,8 +79,10 @@ class RAGService:
             # Chunk document
             chunks = await chunker.chunk(text, enhanced_metadata, chunk_size)
             
-            # Store chunks in vector store
-            await self.retriever.add_chunks(chunks)
+            # Use knowledge_base_id from metadata to create retriever
+            kb_id = metadata.get("knowledge_base_id")
+            retriever = RetrieverFactory.create_retriever(kb_id)
+            await retriever.add_chunks(chunks)
             
             logger.info(f"Successfully ingested document with {len(chunks)} chunks")
             
@@ -113,12 +95,13 @@ class RAGService:
             logger.error(f"Failed to ingest document: {e}", exc_info=True)
             raise
     
-    async def delete_document(self, document_id: str) -> bool:
+    async def delete_document(self, document_id: str, knowledge_base_id: str) -> bool:
         """
         Delete a document from the knowledge base.
         
         Args:
             document_id: ID of the document to delete
+            knowledge_base_id: ID of the knowledge base to delete the document from
             
         Returns:
             True if successful, False otherwise
@@ -126,8 +109,11 @@ class RAGService:
         try:
             logger.info(f"Deleting document {document_id}")
             
+            # Create retriever using the provided knowledge_base_id
+            retriever = RetrieverFactory.create_retriever(knowledge_base_id)
+            
             # Delete document chunks from vector store
-            await self.retriever.delete_document_chunks(document_id)
+            await retriever.delete_document_chunks(document_id)
             
             logger.info(f"Successfully deleted document {document_id}")
             
@@ -139,6 +125,7 @@ class RAGService:
     
     async def retrieve(
         self,
+        knowledge_base_id: str,
         query: str,
         top_k: int = 5,
         similarity_threshold: float = 0.3,
@@ -149,6 +136,7 @@ class RAGService:
         Retrieve relevant chunks and generate an answer.
         
         Args:
+            knowledge_base_id: ID of the knowledge base to use
             query: The query to process
             top_k: Number of chunks to retrieve
             similarity_threshold: Minimum similarity score for chunks
@@ -163,8 +151,11 @@ class RAGService:
         try:
             logger.info(f"Processing query: '{query}'")
             
+            # Create retriever using the provided knowledge_base_id
+            retriever = RetrieverFactory.create_retriever(knowledge_base_id)
+            
             # Retrieve chunks
-            chunks = await self.retriever.search(
+            chunks = await retriever.search(
                 query=query,
                 top_k=top_k * 2 if self.use_reranker else top_k,  # Retrieve more if reranking
                 similarity_threshold=similarity_threshold,

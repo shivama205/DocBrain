@@ -3,10 +3,15 @@ import base64
 import logging
 from celery.exceptions import MaxRetriesExceededError
 import asyncio
+from fastapi import Depends
 import google.generativeai as genai
 
+from sqlalchemy.orm import Session
+from app.db.database import get_db
+from app.db.models.message import MessageContentType, MessageStatus
 from app.repositories.document_repository import DocumentRepository
 from app.db.models.knowledge_base import DocumentStatus
+from app.schemas.message import ProcessedMessageSchema
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
 from app.repositories.message_repository import MessageRepository
@@ -14,6 +19,10 @@ from app.services.rag.vector_store import get_vector_store
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Cached instance for MESSAGE_REPO remains, but we no longer use caching for RAGService
+MESSAGE_REPO = MessageRepository()
+RAG_SERVICE = RAGService()
 
 @shared_task(
     bind=True,
@@ -286,63 +295,60 @@ def delete_document_vectors(self, document_id: str, knowledge_base_id: str = Non
     autoretry_for=(Exception,),
     retry_backoff=True
 )
-def process_rag_response(
+def initiate_rag_retrieval(
     self,
-    message_id: str,
-    query: str,
-    knowledge_base_id: str,
-    top_k: int = 5,
-    similarity_threshold: float = 0.3
+    user_message_id: str,
+    assistant_message_id: str
 ) -> None:
-    """Process RAG response for a message"""
-    async def _process():
-        # Create RAG service
-        rag_service = RAGService(knowledge_base_id)
-        msg_repo = MessageRepository()
-        
+    """Initiate RAG retrieval for a given user message and update the corresponding assistant message.
+    This implementation fetches the user message (content, content_type, knowledge_base_id), uses a cached RAGService instance,
+    applies system config for top_k and similarity_threshold, and then updates the assistant message with the retrieved answer,
+    content_type, sources, and status. No services or repositories are newly instantiated here, ensuring efficiency.
+    """
+
+    async def _retrieve(db: Session = Depends(get_db)):
         try:
-            # Process query through RAG pipeline
-            response = await rag_service.retrieve(
+            # Fetch user message using the cached repository instance
+            user_msg = await MESSAGE_REPO.get_by_id(user_message_id, db)
+            if not user_msg:
+                error_message = f"User message {user_message_id} not found"
+                logger.error(error_message)
+                await MESSAGE_REPO.set_failed(assistant_message_id, error_message, db)
+                return
+
+            # Retrieve system configs for top_k and similarity threshold
+            top_k = settings.RAG_TOP_K
+            similarity_threshold = settings.RAG_SIMILARITY_THRESHOLD
+
+            # Use the content from the user message as the query
+            query = user_msg.content
+
+            # Process query through the RAG pipeline
+            response = await RAG_SERVICE.retrieve(
+                knowledge_base_id=user_msg.knowledge_base_id,
                 query=query,
                 top_k=top_k,
                 similarity_threshold=similarity_threshold
             )
-            
-            if not response.get("sources", []):
-                await msg_repo.update_with_sources(
-                    message_id,
-                    "I could not find any relevant information to answer your question.",
-                    []
-                )
-                return
-            
-            # Update message with response
-            await msg_repo.update_with_sources(
-                message_id,
-                response.get("answer", ""),
-                response.get("sources", [])
-            )
-            
-            logger.info(f"Processed RAG response for message {message_id} with {len(response.get('sources', []))} sources")
-            
-        except MaxRetriesExceededError:
-            logger.error(f"Max retries exceeded for message {message_id}")
-            await msg_repo.update_with_sources(
-                message_id,
-                "I apologize, but I encountered an error while processing your query.",
-                []
-            )
-        except Exception as e:
-            logger.error(f"Failed to process RAG response for message {message_id}: {e}")
-            await msg_repo.update_with_sources(
-                message_id,
-                "I apologize, but I encountered an error while processing your query.",
-                []
-            )
-            raise  # Let Celery handle the retry
 
-    # Run the async function using asyncio.run()
-    return asyncio.run(_process())
+            # Prepare update data based on response
+            data = ProcessedMessageSchema(
+                content=response.get("answer", ""),
+                content_type=MessageContentType.TEXT,
+                sources=response.get("sources", []),
+            )
+            await MESSAGE_REPO.set_completed(assistant_message_id, data, db)
+
+        except MaxRetriesExceededError:
+            err_msg = f"Max retries exceeded for message {assistant_message_id}"
+            logger.error(err_msg)
+            await MESSAGE_REPO.set_failed(assistant_message_id, err_msg, db)
+        except Exception as e:
+            logger.error(f"Failed to process RAG response for message {assistant_message_id}: {e}", exc_info=True)
+            await MESSAGE_REPO.set_failed(assistant_message_id, str(e), db)
+            raise
+
+    return asyncio.run(_retrieve())
 
 def _detect_document_type(content_type: str) -> str:
     """

@@ -1,13 +1,14 @@
 from typing import List, Optional
 import json
-from app.db.models.message import Message
-from app.db.models.conversation import Conversation
-from app.db.models.user import User
-from app.schemas.message import MessageCreate, MessageResponse, MessageType
+
+from app.db.models.message import Message, MessageContentType, MessageStatus
+from app.schemas.message import MessageResponse, ProcessedMessageSchema
 from sqlalchemy.orm import Session
 import logging
 
 logger = logging.getLogger(__name__)
+
+
 
 class MessageRepository:
     @staticmethod
@@ -51,3 +52,30 @@ class MessageRepository:
         db.commit()
         db.refresh(message_id)
         return MessageResponse.model_validate(message_id) 
+    
+    @staticmethod
+    async def set_processed(message_id: str, data: ProcessedMessageSchema, db: Session) -> Optional[MessageResponse]:
+        """Set message as processed"""
+        update_data = {
+            "content": data.content,
+            "content_type": data.content_type,
+            "sources": json.dumps(data.sources) if data.sources is not None else None,
+            "status": MessageStatus.PROCESSED
+        }
+        db.query(Message).filter(Message.id == message_id).update(update_data)
+        db.commit()
+        db.refresh(message_id)
+        return MessageResponse.model_validate(message_id)
+    @staticmethod
+    async def set_failed(message_id: str, error_message: str, db: Session) -> Optional[MessageResponse]:
+        """Set message as failed"""
+        update_data = {
+            "content": error_message,
+            "content_type": MessageContentType.TEXT,
+            "sources": [],
+            "status": MessageStatus.FAILED
+        }
+        db.query(Message).filter(Message.id == message_id).update(update_data)
+        db.commit()
+        db.refresh(message_id)
+        return MessageResponse.model_validate(message_id)
