@@ -1,16 +1,28 @@
 from abc import ABC, abstractmethod
+import base64
 from typing import Dict, Any
 import logging
 import io
+import os  # Added for environment variables
 import PyPDF2
 import csv
 import markdown
 from PIL import Image
 import pytesseract
+
+# Disable GPU acceleration to avoid segfaults with MPS on macOS
+# This prevents the SIGSEGV (signal 11) crashes that occur when docling tries to use
+# the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
+# Setting these environment variables forces CPU-only operation which is more stable.
+os.environ["DOCLING_DEVICE"] = "cpu"  # Try to force docling to use CPU
+os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch if used
+os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
+
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentStream, Path
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +68,6 @@ class PDFIngestor(Ingestor):
         try:
             logger.info("Ingesting PDF document with docling v2")
             
-            # Create a file-like object from bytes
-            pdf_file = io.BytesIO(content)
-            
             # Configure pipeline options
             pipeline_options = PdfPipelineOptions()
             pipeline_options.do_ocr = True
@@ -72,9 +81,10 @@ class PDFIngestor(Ingestor):
                     InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
                 }
             )
-            
-            # Convert the PDF file
-            conv_result = doc_converter.convert(pdf_file)
+
+            # Convert the PDF content
+            content_str = base64.b64encode(content).decode('utf-8')
+            conv_result = doc_converter.convert(source=content_str)
             
             # Get markdown representation
             markdown_text = conv_result.document.export_to_markdown()

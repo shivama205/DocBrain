@@ -66,6 +66,14 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             logger.info(f"Updating document {document_id} status to PROCESSING")
             await DOCUMENT_REPO.set_processing(document_id, db)
             
+            # Generate document summary
+            logger.info(f"Generating summary for document {document_id}")
+            summary = await _generate_document_summary(
+                document.content, 
+                document.title
+            )
+            logger.info(f"Summary generated for document {document_id}")
+
             # Prepare metadata
             metadata = {
                 "document_id": document_id,
@@ -113,14 +121,6 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             chunk_count = len(chunks)
             """
             
-            # Generate document summary
-            logger.info(f"Generating summary for document {document_id}")
-            summary = await _generate_document_summary(
-                str(document.content).encode('utf-8'), 
-                document.title
-            )
-            logger.info(f"Summary generated for document {document_id}")
-            
             # Update document with summary and status
             await DOCUMENT_REPO.set_processed(
                 document_id,
@@ -154,16 +154,19 @@ def initiate_document_ingestion(self, document_id: str) -> None:
         logger.error(f"Failed to run async process for document {document_id}: {e}", exc_info=True)
         raise
 
-async def _generate_document_summary(content: str, title: str) -> str:
+async def _generate_document_summary(content: bytes, title: str) -> str:
     """Generate a summary of the document content using Gemini"""
     try:
         # Initialize Gemini
         genai.configure(api_key=settings.GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-2.0-flash')
         
+        # Convert bytes to base64 string
+        content_str = base64.b64encode(content).decode('utf-8')
+
         # Truncate content if it's too long
         max_content_length = 10000  # Adjust based on model limits
-        truncated_content = content[:max_content_length] + "..." if len(content) > max_content_length else content
+        truncated_content = content_str[:max_content_length] + "..." if len(content_str) > max_content_length else content_str
         
         prompt = f"""Create a comprehensive summary of the following document. 
 The summary should capture the main topics, key points, and important details.
@@ -216,7 +219,7 @@ def initiate_document_vector_deletion(self, document_id: str) -> None:
             logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
             
             # Delete document
-            success = await RAG_SERVICE.delete_document(document_id)
+            success = await RAG_SERVICE.delete_document(document_id, knowledge_base_id)
             
             if success:
                 logger.info(f"Successfully deleted vectors for document {document_id} from knowledge base {knowledge_base_id}")
