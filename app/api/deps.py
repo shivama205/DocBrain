@@ -21,9 +21,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             
 
         # get db 
-        print(f"Getting user {user_id} from db")
         user = db.query(User).filter(User.id == user_id).first()
-        print(f"User: {user}")
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
             

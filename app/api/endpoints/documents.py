@@ -11,7 +11,7 @@ from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from app.worker.celery import celery_app
 from app.api.deps import get_current_user
-from app.schemas.document import DocumentCreate, DocumentResponse, DocumentUpdate
+from app.schemas.document import DocumentResponse, DocumentUpdate, DocumentUpload
 from app.core.config import settings
 
 router = APIRouter()
@@ -62,24 +62,23 @@ def get_document_service(
         db=db
     )
 
-@router.post("/upload", response_model=DocumentResponse)
-async def upload_document(
-    file: UploadFile = File(...),
-    title: str = Form(...),
-    knowledge_base_id: str = Form(...),
-    current_user: UserResponse = Depends(get_current_user),
-    doc_service: DocumentService = Depends(get_document_service)
-):
-    """
-    Upload a document to a knowledge base.
+# @router.post("/upload", response_model=DocumentResponse)
+# async def upload_document(
+#     file: UploadFile = File(...),
+#     knowledge_base_id: str = Form(...),
+#     current_user: UserResponse = Depends(get_current_user),
+#     doc_service: DocumentService = Depends(get_document_service)
+# ):
+#     """
+#     Upload a document to a knowledge base.
     
-    This endpoint:
-    1. Reads and validates the uploaded file
-    2. Creates a document entry in the database
-    3. Triggers a Celery task to process the document
-    """
-    doc_data = DocumentCreate(title=title)
-    return await doc_service.create_document(knowledge_base_id, doc_data, file, current_user)
+#     This endpoint:
+#     1. Reads and validates the uploaded file
+#     2. Creates a document entry in the database
+#     3. Triggers a Celery task to process the document
+#     """
+#     payload = DocumentUpload(title=file.filename, content=file.file.read(), knowledge_base_id=knowledge_base_id, content_type=file.content_type)
+#     return await doc_service.create_document(knowledge_base_id, payload, current_user)
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(

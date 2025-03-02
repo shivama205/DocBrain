@@ -12,15 +12,6 @@ class ChunkSize(str, Enum):
     MEDIUM = "medium"
     LARGE = "large"
 
-class DocumentType(str, Enum):
-    """Enum for document types"""
-    UNSTRUCTURED_TEXT = "unstructured_text"
-    STRUCTURED_TEXT = "structured_text"
-    CODE = "code"
-    LEGAL_DOCS = "legal_docs"
-    SCIENTIFIC = "scientific"
-    TECHNICAL = "technical"
-
 class Chunker(ABC):
     """
     Abstract base class for chunkers that split documents into chunks.

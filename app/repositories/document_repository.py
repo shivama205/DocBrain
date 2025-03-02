@@ -12,7 +12,7 @@ class DocumentRepository:
     """Repository for document operations"""
     
     @staticmethod
-    async def create(document: Document, db: Session) -> Document:
+    async def create(document: Document, db: Session) -> DocumentResponse:
         """
         Create a new document.
         
@@ -27,14 +27,14 @@ class DocumentRepository:
             db.add(document)
             db.commit()
             db.refresh(document)
-            return document
+            return DocumentResponse.model_validate(document)
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to create document: {e}")
             raise
     
     @staticmethod
-    async def get_by_id(document_id: str, db: Session) -> Optional[Document]:
+    async def get_by_id(document_id: str, db: Session) -> Optional[DocumentResponse]:
         """
         Get a document by ID.
         
@@ -46,13 +46,16 @@ class DocumentRepository:
             Document if found, None otherwise
         """
         try:
-            return db.query(Document).filter(Document.id == document_id).first()
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return None
+            return DocumentResponse.model_validate(document)
         except Exception as e:
             logger.error(f"Failed to get document by ID {document_id}: {e}")
             raise
     
     @staticmethod
-    async def list_all(db: Session, skip: int = 0, limit: int = 100) -> List[Document]:
+    async def list_all(db: Session, skip: int = 0, limit: int = 100) -> List[DocumentResponse]:
         """
         Get all documents with pagination.
         
@@ -65,7 +68,8 @@ class DocumentRepository:
             List of documents
         """
         try:
-            return db.query(Document).offset(skip).limit(limit).all()
+            documents = db.query(Document).offset(skip).limit(limit).all()
+            return [DocumentResponse.model_validate(doc) for doc in documents]
         except Exception as e:
             logger.error(f"Failed to list documents: {e}")
             raise
@@ -103,7 +107,7 @@ class DocumentRepository:
             raise
     
     @staticmethod
-    async def update(document_id: str, update_data: Dict[str, Any], db: Session) -> Optional[Document]:
+    async def update(document_id: str, update_data: Dict[str, Any], db: Session) -> Optional[DocumentResponse]:
         """
         Update a document.
         
@@ -127,7 +131,7 @@ class DocumentRepository:
                 
             db.commit()
             db.refresh(document)
-            return document
+            return DocumentResponse.model_validate(document)
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to update document {document_id}: {e}")
@@ -158,8 +162,8 @@ class DocumentRepository:
             logger.error(f"Failed to delete document {document_id}: {e}")
             raise
     
-    @classmethod
-    async def get_by_id(cls, document_id: str) -> Optional[Document]:
+    @staticmethod
+    async def get_by_id(document_id: str, db: Session) -> Optional[DocumentResponse]:
         """
         Class method to get a document by ID.
         
@@ -169,7 +173,7 @@ class DocumentRepository:
         Returns:
             Document if found, None otherwise
         """
-        session = db.get_session()
-        query = select(Document).where(Document.id == document_id)
-        result = await session.execute(query)
-        return result.scalars().first() 
+        document = db.query(Document).filter(Document.id == document_id).first()
+        if not document:
+            return None
+        return DocumentResponse.model_validate(document)

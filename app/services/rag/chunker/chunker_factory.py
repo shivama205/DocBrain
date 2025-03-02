@@ -1,7 +1,8 @@
 from typing import Dict, Any
 import logging
 
-from app.services.rag.chunker.chunker import Chunker, DocumentType, MultiLevelChunker, SingleChunker
+from app.db.models.knowledge_base import DocumentType
+from app.services.rag.chunker.chunker import Chunker, MultiLevelChunker, SingleChunker
 
 logger = logging.getLogger(__name__)
 
@@ -22,37 +23,8 @@ class ChunkerFactory:
             Chunker instance
         """
         try:
-            logger.info(f"Creating chunker for document type: {document_type}")
-            
-            # Normalize document type
-            document_type = document_type.lower()
-            
-            # Map document types to chunkers
-            if document_type in [DocumentType.STRUCTURED_TEXT, 'structured_text', 'structured']:
-                logger.info("Creating MultiLevelChunker for structured text")
-                return MultiLevelChunker()
-            
-            elif document_type in [DocumentType.CODE, 'code']:
-                logger.info("Creating MultiLevelChunker for code")
-                return MultiLevelChunker()
-            
-            elif document_type in [DocumentType.LEGAL_DOCS, 'legal_docs', 'legal']:
-                logger.info("Creating MultiLevelChunker for legal documents")
-                return MultiLevelChunker()
-            
-            elif document_type in [DocumentType.SCIENTIFIC, 'scientific']:
-                logger.info("Creating MultiLevelChunker for scientific documents")
-                return MultiLevelChunker()
-            
-            elif document_type in [DocumentType.TECHNICAL, 'technical']:
-                logger.info("Creating MultiLevelChunker for technical documents")
-                return MultiLevelChunker()
-            
-            else:
-                # Default to single chunker for unstructured text
-                logger.info("Creating SingleChunker for unstructured text")
-                return SingleChunker()
-                
+            # TODO: Implement chunker factory based on document type
+            return MultiLevelChunker()
         except Exception as e:
             logger.error(f"Failed to create chunker: {e}", exc_info=True)
             raise

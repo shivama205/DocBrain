@@ -1,16 +1,15 @@
-from typing import List, Optional
-from fastapi import APIRouter, Body, Depends, UploadFile, File, Form
+from typing import Annotated, List
+from fastapi import APIRouter, Body, Depends, Form, UploadFile, File, Path
 from fastapi.responses import JSONResponse
 from functools import lru_cache
 from sqlalchemy.orm import Session
 
-from app.db.models.user import User
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseUpdate,
     KnowledgeBaseResponse
 )
-from app.schemas.document import DocumentCreate, DocumentUpdate, DocumentResponse
+from app.schemas.document import DocumentUpdate, DocumentResponse, DocumentUpload
 from app.api.deps import get_current_user
 from app.schemas.user import UserResponse
 from app.services.knowledge_base_service import KnowledgeBaseService, LocalFileStorage
@@ -22,6 +21,9 @@ from app.core.config import settings
 from app.worker.celery import celery_app
 from app.db.database import get_db
 
+import logging
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @lru_cache()
@@ -128,19 +130,19 @@ async def share_knowledge_base(
 
 @router.post("/{kb_id}/documents", response_model=DocumentResponse)
 async def create_document(
-    kb_id: str,
-    title: str = Form(description="Document title"),
-    file: UploadFile = File(description="File to upload"),
+    kb_id: str = Path(..., description="Knowledge base ID"),
+    file: UploadFile = Annotated[..., File(..., description="Document to upload")],
     current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Upload a new document to a knowledge base"""
-    doc_data = DocumentCreate(title=title)
-    return await doc_service.create_document(kb_id, doc_data, file, current_user)
+    logger.info(f"Uploading document {file.filename} to knowledge base {kb_id}")
+    payload = DocumentUpload(title=file.filename, content=file.file.read(), knowledge_base_id=kb_id, content_type=file.content_type)
+    return await doc_service.create_document(kb_id, payload, current_user)
 
 @router.get("/{kb_id}/documents", response_model=List[DocumentResponse])
 async def list_documents(
-    kb_id: str,
+    kb_id: str = Path(..., description="Knowledge base ID"),
     current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):

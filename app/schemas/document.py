@@ -1,24 +1,22 @@
 from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
+
+from app.db.models.knowledge_base import DocumentStatus, DocumentType
 
 class DocumentBase(BaseModel):
     """Base document schema"""
-    title: str
-    description: Optional[str] = ""
-    content_type: str
-    knowledge_base_id: str
+    title: str = Field(..., description="Title of the document")
+    content_type: DocumentType = Field(..., description="Content type of the document")
+    knowledge_base_id: str = Field(..., description="Knowledge base ID of the document")
 
-class DocumentCreate(DocumentBase):
-    """Schema for creating a document"""
-    content: str  # Base64 encoded content
-    status: str = "PENDING"
-    user_id: str
+class DocumentUpload(DocumentBase):
+    """Schema for uploading a document"""
+    content: bytes = Field(..., description="Content of the document")
 
 class DocumentUpdate(BaseModel):
     """Schema for updating a document"""
     title: Optional[str] = None
-    description: Optional[str] = None
     status: Optional[str] = None
     error_message: Optional[str] = None
     processed_chunks: Optional[int] = None
@@ -26,14 +24,16 @@ class DocumentUpdate(BaseModel):
 
 class DocumentResponse(DocumentBase):
     """Schema for document response"""
-    id: str
-    status: str
-    error_message: Optional[str] = None
-    processed_chunks: Optional[int] = None
-    summary: Optional[str] = None
-    created_at: datetime
-    updated_at: Optional[datetime] = None
-    user_id: str
+    id: str = Field(..., description="ID of the document")
+    user_id: str = Field(..., description="User ID of the document")
+    content: bytes = Field(..., description="Content of the document", exclude=True)
+    size_bytes: int = Field(..., description="Size of the document in bytes")
+    status: DocumentStatus = Field(..., description="Status of the document")
+    error_message: Optional[str] = Field(default=None, description="Error message if the document processing failed")
+    processed_chunks: Optional[int] = Field(default=None, description="Number of chunks processed")
+    summary: Optional[str] = Field(default=None, description="Summary of the document")
+    created_at: datetime = Field(..., description="Created timestamp")
+    updated_at: datetime = Field(..., description="Last updated timestamp")
     
     class Config:
-        orm_mode = True 
+        from_attributes = True

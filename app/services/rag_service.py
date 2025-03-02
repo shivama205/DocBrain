@@ -40,7 +40,6 @@ class RAGService:
         content: Union[str, bytes],
         metadata: Dict[str, Any],
         content_type: str,
-        chunk_size: ChunkSize = ChunkSize.MEDIUM
     ) -> Dict[str, Any]:
         """
         Ingest a document into the knowledge base.
@@ -49,7 +48,6 @@ class RAGService:
             content: Document content as string or bytes
             metadata: Document metadata
             content_type: MIME type of the document
-            chunk_size: Size of chunks to create
             
         Returns:
             Dictionary containing:
@@ -77,7 +75,7 @@ class RAGService:
             chunker = ChunkerFactory.create_chunker_from_metadata(enhanced_metadata)
             
             # Chunk document
-            chunks = await chunker.chunk(text, enhanced_metadata, chunk_size)
+            chunks = await chunker.chunk(text, enhanced_metadata)
             
             # Use knowledge_base_id from metadata to create retriever
             kb_id = metadata.get("knowledge_base_id")

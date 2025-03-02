@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, LargeBinary, String, Text, ForeignKey, DateTime, Integer
 from sqlalchemy.sql import func
 import enum
 
@@ -11,14 +11,24 @@ class DocumentStatus(str, enum.Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
 
+class DocumentType(str, enum.Enum):
+    """Document type"""
+    PDF = "application/pdf"
+    JPG = "image/jpeg"
+    PNG = "image/png"
+    GIF = "image/gif"
+    TIFF = "image/tiff"
+    DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    DOC = "application/msword"
+    TXT = "text/plain"
+
 class Document(BaseModel):
     """Document model"""
     __tablename__ = "documents"
     
     title = Column(String, nullable=False)
-    file_name = Column(String, nullable=False)
     knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
-    content = Column(Text, nullable=False)  # Base64 encoded content
+    content = Column(LargeBinary, nullable=False)  # Base64 encoded content
     content_type = Column(String, nullable=False)
     size_bytes = Column(Integer, nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
@@ -33,13 +43,13 @@ class Document(BaseModel):
         json_schema_extra = {
             "example": {
                 "title": "Company Policy.pdf",
-                "file_name": "policy.pdf",
+                "knowledge_base_id": "kb123",
+                "user_id": "user123",
+                "content": "base64 encoded content",
                 "content_type": "application/pdf",
                 "size_bytes": 1024,
                 "status": "completed",
-                "vector_ids": ["vec1", "vec2"],
                 "summary": "This is a summary of the document",
-                "uploaded_by": "user123"
             }
         } 
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.db.models.message import MessageContentType, MessageStatus
 from app.repositories.document_repository import DocumentRepository
-from app.db.models.knowledge_base import DocumentStatus
+from app.db.models.knowledge_base import DocumentStatus, DocumentType
 from app.schemas.message import ProcessedMessageSchema
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
@@ -20,7 +20,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Cached instance for MESSAGE_REPO remains, but we no longer use caching for RAGService
+DOCUMENT_REPO = DocumentRepository()
 MESSAGE_REPO = MessageRepository()
 RAG_SERVICE = RAGService()
 
@@ -32,7 +32,7 @@ RAG_SERVICE = RAGService()
     retry_backoff=True,
     retry_jitter=True
 )
-def process_document(self, document_id: str) -> None:
+def initiate_document_ingestion(self, document_id: str) -> None:
     """
     Process document content and create chunks.
     
@@ -49,13 +49,11 @@ def process_document(self, document_id: str) -> None:
     """
     logger.info(f"Starting document processing task for document_id: {document_id}")
     
-    async def _process():
-        doc_repo = DocumentRepository()
-        
+    async def _ingest(db: Session = Depends(get_db)):
         try:
             # Get document
             logger.info(f"Fetching document {document_id} from repository")
-            document = await doc_repo.get_by_id(document_id)
+            document = await DOCUMENT_REPO.get_by_id(document_id, db)
             if not document:
                 logger.error(f"Document {document_id} not found")
                 return
@@ -64,10 +62,10 @@ def process_document(self, document_id: str) -> None:
             
             # Update status to processing
             logger.info(f"Updating document {document_id} status to PROCESSING")
-            await doc_repo.update(document_id, {
+            await DOCUMENT_REPO.update(document_id, {
                 "status": DocumentStatus.PROCESSING,
                 "error_message": None
-            })
+            }, db)
             
             # Decode content
             try:
@@ -77,10 +75,6 @@ def process_document(self, document_id: str) -> None:
                 logger.error(f"Failed to decode document content: {e}")
                 raise ValueError(f"Invalid document content: {str(e)}")
             
-            # Detect document type
-            document_type = _detect_document_type(document.content_type)
-            logger.info(f"Detected document type: {document_type}")
-            
             # Prepare metadata
             metadata = {
                 "document_id": document_id,
@@ -88,7 +82,7 @@ def process_document(self, document_id: str) -> None:
                 "document_title": document.title,
                 "content_type": document.content_type,
                 "knowledge_base_id": document.knowledge_base_id,
-                "document_type": document_type
+                "document_type": document.content_type
             }
             
             # Method 1: Use RAG service for end-to-end processing
@@ -98,7 +92,6 @@ def process_document(self, document_id: str) -> None:
                 content=content,
                 metadata=metadata,
                 content_type=document.content_type,
-                chunk_size=_get_chunk_size(document_type)
             )
             chunk_count = result["chunk_count"]
             
@@ -173,7 +166,7 @@ def process_document(self, document_id: str) -> None:
 
     # Run the async function using asyncio.run()
     try:
-        return asyncio.run(_process())
+        return asyncio.run(_ingest())
     except Exception as e:
         logger.error(f"Failed to run async process for document {document_id}: {e}", exc_info=True)
         raise
@@ -350,34 +343,7 @@ def initiate_rag_retrieval(
 
     return asyncio.run(_retrieve())
 
-def _detect_document_type(content_type: str) -> str:
-    """
-    Detect document type from content type.
-    
-    Args:
-        content_type: MIME type of the document
-        
-    Returns:
-        Document type as a string
-    """
-    content_type = content_type.lower()
-    
-    if 'pdf' in content_type:
-        return "pdf_with_layout"
-    elif any(code_type in content_type for code_type in ['javascript', 'python', 'java', 'typescript']):
-        return "code"
-    elif content_type in ['text/markdown', 'text/rst']:
-        return "technical_docs"
-    elif 'legal' in content_type or content_type == 'application/contract':
-        return "legal_docs"
-    elif content_type in ['text/csv', 'application/csv']:
-        return "structured_text"
-    elif content_type.startswith('image/'):
-        return "image"
-    else:
-        return "unstructured_text"
-
-def _get_chunk_size(document_type: str) -> ChunkSize:
+def _get_chunk_size(document_type: DocumentType) -> ChunkSize:
     """
     Get appropriate chunk size based on document type.
     
@@ -388,13 +354,13 @@ def _get_chunk_size(document_type: str) -> ChunkSize:
         ChunkSize enum value
     """
     chunk_sizes = {
-        "unstructured_text": ChunkSize.MEDIUM,
-        "structured_text": ChunkSize.MEDIUM,
-        "technical_docs": ChunkSize.LARGE,
-        "code": ChunkSize.SMALL,
-        "legal_docs": ChunkSize.SMALL,
-        "pdf_with_layout": ChunkSize.MEDIUM,
-        "image": ChunkSize.MEDIUM
+        DocumentType.PDF: ChunkSize.MEDIUM,
+        DocumentType.TXT: ChunkSize.MEDIUM,
+        DocumentType.DOCX: ChunkSize.MEDIUM,
+        DocumentType.DOC: ChunkSize.MEDIUM,
+        DocumentType.JPG: ChunkSize.MEDIUM,
+        DocumentType.PNG: ChunkSize.MEDIUM,
+        DocumentType.GIF: ChunkSize.MEDIUM,
     }
     
     return chunk_sizes.get(document_type, ChunkSize.MEDIUM) 
