@@ -4,24 +4,35 @@ from typing import Dict, Any
 import logging
 import io
 import os  # Added for environment variables
+import multiprocessing
 import PyPDF2
 import csv
 import markdown
 from PIL import Image
 import pytesseract
 
-# # Disable GPU acceleration to avoid segfaults with MPS on macOS
-# # This prevents the SIGSEGV (signal 11) crashes that occur when docling tries to use
-# # the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
-# # Setting these environment variables forces CPU-only operation which is more stable.
-# os.environ["DOCLING_DEVICE"] = "cpu"  # Try to force docling to use CPU
-# os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch if used
-# os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
+# Configure multiprocessing to use 'spawn' instead of 'fork'
+# This can help prevent segmentation faults in multiprocessing environments
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    # If already set, this will raise a RuntimeError
+    pass
+
+# Disable GPU acceleration to avoid segfaults with MPS on macOS
+# This prevents the SIGSEGV (signal 11) crashes that occur when docling tries to use
+# the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
+# Setting these environment variables forces CPU-only operation which is more stable.
+os.environ["DOCLING_DEVICE"] = "cpu"  # Try to force docling to use CPU
+os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch if used
+os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
+os.environ["PYTORCH_MPS_ENABLE_WORKSTREAM_WATCHDOG"] = "0"  # Disable MPS watchdog
 
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import DocumentStream
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +92,14 @@ class PDFIngestor(Ingestor):
                 }
             )
 
+            # Convert bytes to DocumentStream
+            content_stream = DocumentStream(
+                name=metadata.get("title", "temp.pdf"),
+                stream=io.BytesIO(content)
+            )
+
             # Convert the PDF content
-            content_str = base64.b64encode(content).decode('utf-8')
-            conv_result = doc_converter.convert(source=content_str)
+            conv_result = doc_converter.convert(source=content_stream)
             
             # Get markdown representation
             markdown_text = conv_result.document.export_to_markdown()

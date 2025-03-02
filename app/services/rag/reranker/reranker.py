@@ -1,11 +1,28 @@
 from abc import ABC, abstractmethod
+import math
 from typing import List, Dict, Any, Optional
 import logging
+import os
+import multiprocessing
 import torch
 from sentence_transformers import CrossEncoder
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Configure multiprocessing to use 'spawn' instead of 'fork'
+# This can help prevent segmentation faults in multiprocessing environments
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    # If already set, this will raise a RuntimeError
+    pass
+
+# Disable GPU acceleration to avoid segfaults with MPS on macOS
+# This prevents the SIGSEGV (signal 11) crashes that occur when PyTorch tries to use
+# the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
+os.environ["PYTORCH_MPS_ENABLE_WORKSTREAM_WATCHDOG"] = "0"  # Disable MPS watchdog
+os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch
+os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
 
 class Reranker(ABC):
     """
@@ -47,8 +64,17 @@ class CrossEncoderReranker(Reranker):
         """
         try:
             logger.info(f"Initializing CrossEncoderReranker with model {model_name}")
-            self.model = CrossEncoder(model_name)
-            self.device = "cpu" 
+            
+            # Force CPU usage to avoid segmentation faults
+            if torch.cuda.is_available():
+                logger.info("CUDA is available but forcing CPU usage to avoid segmentation faults")
+            
+            # Explicitly set device to CPU
+            self.device = "cpu"
+            
+            # Initialize the model with device="cpu" to force CPU usage
+            self.model = CrossEncoder(model_name, device=self.device)
+            
             logger.info(f"CrossEncoderReranker initialized on device: {self.device}")
         except Exception as e:
             logger.error(f"Failed to initialize CrossEncoderReranker: {e}", exc_info=True)
@@ -85,9 +111,17 @@ class CrossEncoderReranker(Reranker):
             # Prepare pairs for cross-encoder
             pairs = [(query, chunk["content"]) for chunk in chunks]
             
-            # Get scores from cross-encoder
-            scores = self.model.predict(pairs)
-            
+            # Get scores from cross-encoder with explicit batch size to avoid memory issues
+            # and show_progress_bar=False to avoid tqdm issues in multiprocessing
+            logger.info(f"self.device: {self.device}")
+            scores: List[float] = self.model.predict(pairs)
+
+            logger.info(f"type of scores: {type(scores)}")
+            logger.info(f"type of scores[0]: {type(scores[0])}")
+
+            # Convert NaN values to 0
+            scores = [0 if math.isnan(score) else score for score in scores]
+
             # Add scores to chunks
             for i, score in enumerate(scores):
                 chunks[i]["rerank_score"] = float(score)
@@ -95,6 +129,7 @@ class CrossEncoderReranker(Reranker):
                 chunks[i]["similarity_score"] = chunks[i].get("score", 0.0)
                 # Update the main score to the rerank score
                 chunks[i]["score"] = float(score)
+                logger.info(f"Chunk {i}: {chunks[i]}")
             
             # Sort by rerank score
             reranked_chunks = sorted(chunks, key=lambda x: x["rerank_score"], reverse=True)

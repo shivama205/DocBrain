@@ -1,12 +1,12 @@
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 import logging
 from app.db.models.knowledge_base import DocumentType
-from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag.chunker.chunker_factory import ChunkerFactory
 from app.services.rag.ingestor.ingestor_factory import IngestorFactory
-from app.services.rag.reranker import CrossEncoderReranker
+from app.services.rag.reranker.reranker_factory import RerankerFactory
 from app.services.rag.retriever.retriever_factory import RetrieverFactory
 from app.services.rag.llm import GeminiLLM
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +16,10 @@ class RAGService:
     chunking, retrieval, reranking, and answer generation.
     """
     
-    def __init__(self, use_reranker: bool = True, reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2", llm_model: str = "gemini-2.0-flash"):
+    def __init__(self, use_reranker: bool = True, reranker_model: str = "Cohere/rerank-v3.5", llm_model: str = "gemini-2.0-flash"):
         """Initialize the RAG service. All methods now receive knowledge_base_id as a parameter where needed."""
         try:
-            logger.info("Initializing RAG service")
-
-            self.use_reranker = use_reranker
-            if use_reranker:
-                logger.info(f"Initializing reranker with model {reranker_model}")
-                self.reranker = CrossEncoderReranker(reranker_model)
-            else:
-                self.reranker = None
-
-            logger.info(f"Initializing LLM with model {llm_model}")
+            logger.info(f"Initializing LLM with model {llm_model} for RAG service")
             self.llm = GeminiLLM(llm_model)
 
             logger.info("RAG service initialized successfully")
@@ -149,23 +140,23 @@ class RAGService:
             # Create retriever using the provided knowledge_base_id
             retriever = RetrieverFactory.create_retriever(knowledge_base_id)
             
+            # Determine whether to rerank
+            should_rerank = True
+
             # Retrieve chunks
             chunks = await retriever.search(
                 query=query,
-                top_k=top_k * 2 if self.use_reranker else top_k,  # Retrieve more if reranking
+                top_k=top_k * 2 if should_rerank else top_k,  # Retrieve more if reranking
                 similarity_threshold=similarity_threshold,
                 metadata_filter=metadata_filter
             )
-            
             logger.info(f"Retrieved {len(chunks)} chunks")
-            
-            # Determine whether to rerank
-            should_rerank = False
             
             # Rerank chunks if enabled
             if should_rerank and chunks:
                 logger.info("Reranking chunks")
-                chunks = await self.reranker.rerank(query, chunks, top_k)
+                reranker = RerankerFactory.create({"type": settings.RERANKER_TYPE})
+                chunks = await reranker.rerank(query, chunks, top_k)
                 logger.info(f"Reranked to {len(chunks)} chunks")
             elif len(chunks) > top_k:
                 # Limit to top_k if not reranking

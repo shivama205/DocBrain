@@ -34,8 +34,9 @@ class Settings(BaseSettings):
     WHITELISTED_EMAILS: str
 
     # RAG
-    RAG_TOP_K: int = 5
+    RAG_TOP_K: int = 3
     RAG_SIMILARITY_THRESHOLD: float = 0.3
+    RERANKER_TYPE: str = os.getenv("RERANKER_TYPE", "flag")
     
     @property
     def WHITELISTED_EMAIL_LIST(self) -> List[str]:
