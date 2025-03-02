@@ -37,8 +37,8 @@ class MessageRepository:
     @staticmethod
     async def list_by_conversation(conversation_id: str, db: Session) -> List[MessageResponse]:
         """List all messages in a conversation"""
-        return [MessageResponse.model_validate(message) 
-                for message in db.query(Message).filter(Message.conversation_id == conversation_id).all()]  
+        messages = db.query(Message).filter(Message.conversation_id == conversation_id).all()
+        return [MessageResponse.model_validate(message) for message in messages]
 
     @staticmethod
     async def update_with_sources(message_id: str, content: str, sources: List[dict], db: Session) -> Optional[MessageResponse]:

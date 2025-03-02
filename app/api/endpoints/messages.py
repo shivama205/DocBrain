@@ -1,9 +1,8 @@
 from typing import List
-from fastapi import APIRouter, Body, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Body, Depends, Path
 from functools import lru_cache
 from sqlalchemy.orm import Session
 
-from app.db.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
 from app.api.deps import get_current_user
 from app.schemas.user import UserResponse
@@ -33,15 +32,15 @@ def get_message_service(
 
 @router.post("/{conversation_id}/messages", response_model=MessageResponse)
 async def create_message(
-    conversation_id: str,
-    message: MessageCreate = Body(..., description="Message details"),
+    conversation_id: str = Path(..., description="ID of the conversation this message belongs to"),
+    payload: MessageCreate = Body(..., description="Message details"),
     current_user: UserResponse = Depends(get_current_user),
     message_service: MessageService = Depends(get_message_service)
 ):
     """Create a new message in a conversation"""
     return await message_service.create_message(
         conversation_id,
-        message,
+        payload,
         current_user,
     )
 

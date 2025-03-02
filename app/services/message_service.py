@@ -8,7 +8,7 @@ from app.repositories.message_repository import MessageRepository
 from app.schemas.user import UserResponse
 from app.services.conversation_service import ConversationService
 from app.worker.celery import celery_app
-from app.schemas.message import MessageCreate, MessageType
+from app.schemas.message import MessageCreate, MessageResponse, MessageType
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -27,9 +27,9 @@ class MessageService:
     async def create_message(
         self,
         conversation_id: str,
-        message_data: MessageCreate,
+        payload: MessageCreate,
         current_user: UserResponse,
-    ) -> Message:
+    ) -> MessageResponse:
         """Create a new message in a conversation"""
         try:
             # Check conversation access
@@ -42,8 +42,8 @@ class MessageService:
             message = Message(
                 conversation_id=conversation_id,
                 knowledge_base_id=conversation.knowledge_base_id,
-                content=message_data.content,
-                content_type=self._map_content_type(message_data.content_type),
+                content=payload.content,
+                content_type=payload.content_type,
                 kind=MessageKind.USER,
                 status=MessageStatus.RECEIVED,
                 user_id=current_user.id
@@ -90,7 +90,7 @@ class MessageService:
         conversation_id: str,
         message_id: str,
         current_user: UserResponse
-    ) -> Message:
+    ) -> MessageResponse:
         """Get message details"""
         try:
             # Check conversation access first
@@ -112,7 +112,7 @@ class MessageService:
         self,
         conversation_id: str,
         current_user: UserResponse
-    ) -> List[Message]:
+    ) -> List[MessageResponse]:
         """List all messages in a conversation"""
         try:
             # Check conversation access first

@@ -22,8 +22,6 @@ class MessageBase(BaseModel):
     """Base message attributes"""
     content: str = Field(..., description="Content of the message")
     content_type: MessageContentType = Field(..., description="Type of message (TEXT/IMAGE/AUDIO/VIDEO/DOCUMENT)")
-    conversation_id: str = Field(..., description="ID of the conversation this message belongs to")
-    knowledge_base_id: str = Field(..., description="ID of the knowledge base this message belongs to")
 
 class ProcessedMessageSchema(BaseModel):
     """Processed message attributes"""
@@ -39,11 +37,16 @@ class MessageResponse(MessageBase):
     """Response model for messages"""
     id: str = Field(..., description="Unique identifier for the message")
     kind: MessageKind = Field(..., description="Kind of message (USER/ASSISTANT/SYSTEM)")
-    sources: Optional[List[MessageSource]] = Field(None, description="Source documents used for assistant's response")
     user_id: str = Field(..., description="ID of the user who created the message")
+    conversation_id: str = Field(..., description="ID of the conversation this message belongs to")
+    knowledge_base_id: str = Field(..., description="ID of the knowledge base this message belongs to")
+    sources: Optional[List[MessageSource]] = Field(None, description="Source documents used for assistant's response")
     status: MessageStatus = Field(..., description="Status of the message (RECEIVED/PROCESSING/SENT/FAILED)")
     created_at: datetime = Field(..., description="When the message was created")
     updated_at: datetime = Field(..., description="When the message was last updated")
+
+    class Config:
+        from_attributes = True
 
 class MessageProcessingResponse(BaseModel):
     """Response for asynchronous message processing"""
