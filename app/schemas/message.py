@@ -23,12 +23,6 @@ class MessageBase(BaseModel):
     content: str = Field(..., description="Content of the message")
     content_type: MessageContentType = Field(..., description="Type of message (TEXT/IMAGE/AUDIO/VIDEO/DOCUMENT)")
 
-class ProcessedMessageSchema(BaseModel):
-    """Processed message attributes"""
-    content: str
-    content_type: MessageContentType
-    sources: List[MessageSource]
-
 class MessageCreate(MessageBase):
     """Attributes for creating a new message"""
     pass

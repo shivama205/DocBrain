@@ -48,7 +48,7 @@ class CrossEncoderReranker(Reranker):
         try:
             logger.info(f"Initializing CrossEncoderReranker with model {model_name}")
             self.model = CrossEncoder(model_name)
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            self.device = "cpu" 
             logger.info(f"CrossEncoderReranker initialized on device: {self.device}")
         except Exception as e:
             logger.error(f"Failed to initialize CrossEncoderReranker: {e}", exc_info=True)

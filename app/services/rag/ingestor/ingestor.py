@@ -10,19 +10,18 @@ import markdown
 from PIL import Image
 import pytesseract
 
-# Disable GPU acceleration to avoid segfaults with MPS on macOS
-# This prevents the SIGSEGV (signal 11) crashes that occur when docling tries to use
-# the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
-# Setting these environment variables forces CPU-only operation which is more stable.
-os.environ["DOCLING_DEVICE"] = "cpu"  # Try to force docling to use CPU
-os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch if used
-os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
+# # Disable GPU acceleration to avoid segfaults with MPS on macOS
+# # This prevents the SIGSEGV (signal 11) crashes that occur when docling tries to use
+# # the Metal Performance Shaders (MPS) backend on macOS, especially in multiprocessing environments.
+# # Setting these environment variables forces CPU-only operation which is more stable.
+# os.environ["DOCLING_DEVICE"] = "cpu"  # Try to force docling to use CPU
+# os.environ["MPS_VISIBLE_DEVICES"] = ""  # Disable MPS for PyTorch if used
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Disable CUDA if present
 
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentStream, Path
 
 logger = logging.getLogger(__name__)
 

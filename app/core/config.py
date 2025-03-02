@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     # Test Emails
     WHITELISTED_EMAILS: str
+
+    # RAG
+    RAG_TOP_K: int = 5
+    RAG_SIMILARITY_THRESHOLD: float = 0.3
     
     @property
     def WHITELISTED_EMAIL_LIST(self) -> List[str]:
@@ -66,19 +70,6 @@ class Settings(BaseSettings):
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, (list, str)):
             return v
-        raise ValueError(v)
-    
-    # @field_validator("DATABASE_URL")
-    # def assemble_db_connection(cls, v: Optional[str], values: Dict[str, Any]) -> Any:
-    #     if isinstance(v, str):
-    #         return v
-    #     return PostgresDsn.build(
-    #         scheme="postgresql+asyncpg",
-    #         user=values.get("POSTGRES_USER"),
-    #         password=values.get("POSTGRES_PASSWORD"),
-    #         host=values.get("POSTGRES_SERVER"),
-    #         path=f"/{values.get('POSTGRES_DB') or ''}",
-    #     )
 
     class Config:
         env_file = ".env"

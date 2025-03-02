@@ -160,10 +160,10 @@ class RAGService:
             logger.info(f"Retrieved {len(chunks)} chunks")
             
             # Determine whether to rerank
-            should_rerank = rerank if rerank is not None else self.use_reranker
+            should_rerank = False
             
             # Rerank chunks if enabled
-            if should_rerank and self.reranker and chunks:
+            if should_rerank and chunks:
                 logger.info("Reranking chunks")
                 chunks = await self.reranker.rerank(query, chunks, top_k)
                 logger.info(f"Reranked to {len(chunks)} chunks")

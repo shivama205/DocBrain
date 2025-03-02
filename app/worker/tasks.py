@@ -4,20 +4,15 @@ import base64
 import logging
 from celery.exceptions import MaxRetriesExceededError
 import asyncio
-from fastapi import Depends
 import google.generativeai as genai
 
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.db.models.message import MessageContentType, MessageStatus
+from app.db.models.message import MessageContentType
 from app.repositories.document_repository import DocumentRepository
-from app.db.models.knowledge_base import DocumentStatus, DocumentType
 from app.schemas.document import DocumentResponse
-from app.schemas.message import ProcessedMessageSchema
-from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
 from app.repositories.message_repository import MessageRepository
-from app.services.rag.vector_store import get_vector_store
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -305,12 +300,13 @@ def initiate_rag_retrieval(
             )
 
             # Prepare update data based on response
-            data = ProcessedMessageSchema(
+            await MESSAGE_REPO.set_processed(
+                message_id=assistant_message_id,
                 content=response.get("answer", ""),
                 content_type=MessageContentType.TEXT,
                 sources=response.get("sources", []),
+                db=db
             )
-            await MESSAGE_REPO.set_completed(assistant_message_id, data, db)
 
         except MaxRetriesExceededError:
             err_msg = f"Max retries exceeded for message {assistant_message_id}"
