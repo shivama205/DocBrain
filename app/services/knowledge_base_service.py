@@ -127,7 +127,7 @@ class KnowledgeBaseService:
             raise HTTPException(status_code=404, detail="Knowledge base not found")
         
         # Check if user has permission to update
-        if str(kb.owner_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
+        if str(kb.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=403, detail="You don't have permission to update this knowledge base")
         
         try:
@@ -153,7 +153,7 @@ class KnowledgeBaseService:
             raise HTTPException(status_code=404, detail="Knowledge base not found")
         
         # Check if user has permission to delete
-        if str(kb.owner_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
+        if str(kb.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN:
             raise HTTPException(status_code=403, detail="You don't have permission to delete this knowledge base")
         
         try:

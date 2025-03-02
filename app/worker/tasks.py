@@ -116,7 +116,7 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             # Generate document summary
             logger.info(f"Generating summary for document {document_id}")
             summary = await _generate_document_summary(
-                base64.b64decode(document.content).decode('utf-8'), 
+                str(document.content).encode('utf-8'), 
                 document.title
             )
             logger.info(f"Summary generated for document {document_id}")
@@ -199,30 +199,24 @@ Summary:"""
     autoretry_for=(Exception,),
     retry_backoff=True
 )
-def delete_document_vectors(self, document_id: str, knowledge_base_id: str = None) -> None:
+def initiate_document_vector_deletion(self, document_id: str) -> None:
     """Delete document vectors from vector store"""
-    async def _process():
-        from app.repositories.document_repository import DocumentRepository
+    async def _delete_vectors(db: Session):
         
         try:
             logger.info(f"Starting vector deletion for document {document_id}")
             
-            # If knowledge_base_id is not provided, get it from the document
-            if not knowledge_base_id:
-                # Get the document to find its knowledge base ID
-                document = await DocumentRepository.get_by_id(document_id)
-                if not document:
-                    logger.warning(f"Document {document_id} not found, cannot delete vectors")
-                    return True
-                    
-                knowledge_base_id = document.knowledge_base_id
-                logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
-            
-            # Use RAG service for deletion (which uses VectorStore internally)
-            rag_service = RAGService(knowledge_base_id)
+            # Get the document to find its knowledge base ID
+            document = await DOCUMENT_REPO.get_by_id(document_id, db)
+            if not document:
+                logger.warning(f"Document {document_id} not found, cannot delete vectors")
+                return True
+                
+            knowledge_base_id = document.knowledge_base_id
+            logger.info(f"Found document {document_id} in knowledge base {knowledge_base_id}")
             
             # Delete document
-            success = await rag_service.delete_document(document_id)
+            success = await RAG_SERVICE.delete_document(document_id)
             
             if success:
                 logger.info(f"Successfully deleted vectors for document {document_id} from knowledge base {knowledge_base_id}")
@@ -248,7 +242,7 @@ def delete_document_vectors(self, document_id: str, knowledge_base_id: str = Non
             raise
 
     try:
-        return asyncio.run(_process())
+        return asyncio.run(_delete_vectors(get_db().__next__()))
     except Exception as e:
         logger.error(f"Failed to run async process for document vector deletion {document_id}: {e}", exc_info=True)
         # Check retry count and provide more context

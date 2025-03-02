@@ -175,7 +175,7 @@ class DocumentService:
             kb = await self.kb_service.get_knowledge_base(doc.knowledge_base_id, current_user)
             
             # Only owner or admin can update
-            if current_user.role != UserRole.ADMIN and str(kb.owner_id) != str(current_user.id):
+            if current_user.role != UserRole.ADMIN and str(kb.user_id) != str(current_user.id):
                 raise HTTPException(status_code=403, detail="Not enough privileges")
             
             # Update document
@@ -204,13 +204,13 @@ class DocumentService:
             doc = await self.get_document(doc_id, current_user)
             kb = await self.kb_service.get_knowledge_base(doc.knowledge_base_id, current_user)
             
-            if current_user.role != UserRole.ADMIN and str(kb.owner_id) != str(current_user.id):
+            if current_user.role != UserRole.ADMIN and str(kb.user_id) != str(current_user.id):
                 raise HTTPException(status_code=403, detail="Not enough privileges")
             
             # Queue vector deletion task
             self.celery_app.send_task(
-                'app.worker.tasks.delete_document_vectors',
-                args=[doc.id, str(doc.knowledge_base_id)]
+                'app.worker.tasks.initiate_document_vector_deletion',
+                args=[doc.id]
             )
             
             # Delete document

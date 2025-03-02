@@ -247,7 +247,7 @@ All endpoints require authentication unless specified otherwise.
   "id": "kb_id",
   "name": "My Knowledge Base",
   "description": "Description",
-  "owner_id": "user_id",
+  "user_id": "user_id",
   "shared_with": ["user_id1", "user_id2"],
   "created_at": "2024-02-24T12:00:00Z",
   "updated_at": "2024-02-24T12:00:00Z"
@@ -275,7 +275,7 @@ All endpoints require authentication unless specified otherwise.
   "id": "conversation_id",
   "title": "My Conversation",
   "knowledge_base_id": "kb_id",
-  "owner_id": "user_id",
+  "user_id": "user_id",
   "messages": [
     {
       "id": "message_id",
