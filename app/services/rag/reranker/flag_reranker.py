@@ -15,7 +15,7 @@ class FlagEmbeddingReranker(Reranker):
         try:
             logger.info(f"Reranking {len(chunks)} chunks with query: {query}")
             pairs = [(query, chunk["content"]) for chunk in chunks]
-            scores = self.reranker.compute_score(pairs)
+            scores = self.reranker.compute_score(pairs, normalize=True)
             logger.info(f"Scores: {scores}")
 
             # Add scores to chunks

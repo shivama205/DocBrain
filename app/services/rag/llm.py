@@ -132,16 +132,17 @@ class GeminiLLM(LLM):
         Returns:
             Complete prompt as a string
         """
-        return f"""Based on the following sources, please answer the question.
-If you cannot find a relevant answer in the sources, please say so.
+        return f"""
+        Based on the given sources, please answer the question.
+        If you cannot find a relevant answer in the sources, please say so.
 
-Sources:
-{context}
+        Sources:
+        {context}
 
-Question: {query}
+        Question: {query}
 
-Please provide a clear, direct answer that:
-1. Directly addresses the question
-2. Uses [Source X] notation to cite the sources
-3. Only uses information from the provided sources
-4. Maintains a professional and helpful tone""" 
+        Please provide a clear, direct answer that:
+        1. Directly addresses the question
+        2. Uses [Source X] notation to cite the sources
+        3. Only uses information from the provided sources
+        4. Maintains a professional and helpful tone""" 

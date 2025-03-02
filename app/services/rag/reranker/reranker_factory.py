@@ -106,7 +106,7 @@ class RerankerFactory:
         Returns:
             A FlagEmbeddingReranker instance
         """
-        model_name = config.get("model_name", "BAAI/bge-reranker-v2-gemma")
+        model_name = config.get("model_name", "BAAI/bge-reranker-v2-m3")
         logger.info(f"Creating FlagEmbeddingReranker with model: {model_name}")
         
         return FlagEmbeddingReranker(model_name=model_name)
