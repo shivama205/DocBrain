@@ -3,7 +3,7 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.db.models.knowledge_base import Document
+from app.db.models.knowledge_base import Document, DocumentStatus
 from app.schemas.document import DocumentResponse
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,64 @@ class DocumentRepository:
         except Exception as e:
             logger.error(f"Failed to list documents for knowledge base {knowledge_base_id}: {e}")
             raise
-    
+
+    @staticmethod
+    async def set_processing(document_id: str, db: Session) -> Optional[DocumentResponse]:
+        """
+        Set a document as processing.
+        """
+        try:
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return None
+            document.status = DocumentStatus.PROCESSING
+            db.commit()
+            db.refresh(document)
+            return DocumentResponse.model_validate(document)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to set document {document_id} as processing: {e}")
+            raise
+
+    @staticmethod
+    async def set_processed(document_id: str, summary: Optional[str], processed_chunks: int, db: Session) -> Optional[DocumentResponse]:
+        """
+        Set a document as processed.
+        """
+        try:
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return None
+            document.status = DocumentStatus.PROCESSED
+            document.summary = summary
+            document.processed_chunks = processed_chunks
+            db.commit()
+            db.refresh(document)
+            return DocumentResponse.model_validate(document)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to set document {document_id} as processed: {e}")
+            raise
+
+    @staticmethod
+    async def set_failed(document_id: str, error_message: str, db: Session) -> Optional[DocumentResponse]:
+        """
+        Set a document as failed.
+        """
+        try:
+            document = db.query(Document).filter(Document.id == document_id).first()
+            if not document:
+                return None
+            document.status = DocumentStatus.FAILED
+            document.error_message = error_message
+            db.commit()
+            db.refresh(document)
+            return DocumentResponse.model_validate(document)
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Failed to set document {document_id} as failed: {e}")
+            raise
+
     @staticmethod
     async def update(document_id: str, update_data: Dict[str, Any], db: Session) -> Optional[DocumentResponse]:
         """

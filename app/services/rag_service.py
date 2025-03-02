@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, Union
 import logging
+from app.db.models.knowledge_base import DocumentType
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag.chunker.chunker_factory import ChunkerFactory
 from app.services.rag.ingestor.ingestor_factory import IngestorFactory
@@ -37,9 +38,9 @@ class RAGService:
     
     async def ingest_document(
         self,
-        content: Union[str, bytes],
+        content: bytes,
         metadata: Dict[str, Any],
-        content_type: str,
+        content_type: DocumentType,
     ) -> Dict[str, Any]:
         """
         Ingest a document into the knowledge base.
@@ -56,10 +57,6 @@ class RAGService:
         """
         try:
             logger.info(f"Ingesting document of type {content_type}")
-            
-            # Convert string to bytes if needed
-            if isinstance(content, str):
-                content = content.encode('utf-8')
             
             # Create ingestor
             ingestor = IngestorFactory.create_ingestor(content_type)

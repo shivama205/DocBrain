@@ -1,3 +1,4 @@
+from typing import Optional
 from celery import shared_task
 import base64
 import logging
@@ -11,6 +12,7 @@ from app.db.database import get_db
 from app.db.models.message import MessageContentType, MessageStatus
 from app.repositories.document_repository import DocumentRepository
 from app.db.models.knowledge_base import DocumentStatus, DocumentType
+from app.schemas.document import DocumentResponse
 from app.schemas.message import ProcessedMessageSchema
 from app.services.rag.chunker.chunker import ChunkSize
 from app.services.rag_service import RAGService
@@ -49,31 +51,20 @@ def initiate_document_ingestion(self, document_id: str) -> None:
     """
     logger.info(f"Starting document processing task for document_id: {document_id}")
     
-    async def _ingest(db: Session = Depends(get_db)):
+    async def _ingest(db: Session):
         try:
             # Get document
             logger.info(f"Fetching document {document_id} from repository")
-            document = await DOCUMENT_REPO.get_by_id(document_id, db)
+            document: Optional[DocumentResponse] = await DOCUMENT_REPO.get_by_id(document_id, db)
             if not document:
                 logger.error(f"Document {document_id} not found")
-                return
+                raise ValueError(f"Document {document_id} not found")
             
             logger.info(f"Processing document: {document.title} (type: {document.content_type})")
             
             # Update status to processing
             logger.info(f"Updating document {document_id} status to PROCESSING")
-            await DOCUMENT_REPO.update(document_id, {
-                "status": DocumentStatus.PROCESSING,
-                "error_message": None
-            }, db)
-            
-            # Decode content
-            try:
-                logger.debug(f"Decoding content for document {document_id}")
-                content = base64.b64decode(document.content)
-            except Exception as e:
-                logger.error(f"Failed to decode document content: {e}")
-                raise ValueError(f"Invalid document content: {str(e)}")
+            await DOCUMENT_REPO.set_processing(document_id, db)
             
             # Prepare metadata
             metadata = {
@@ -87,9 +78,8 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             
             # Method 1: Use RAG service for end-to-end processing
             # This is simpler but provides less control over individual steps
-            rag_service = RAGService(document.knowledge_base_id)
-            result = await rag_service.ingest_document(
-                content=content,
+            result = await RAG_SERVICE.ingest_document(
+                content=document.content,
                 metadata=metadata,
                 content_type=document.content_type,
             )
@@ -132,41 +122,34 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             logger.info(f"Summary generated for document {document_id}")
             
             # Update document with summary and status
-            await doc_repo.update(
+            await DOCUMENT_REPO.set_processed(
                 document_id,
-                {
-                    "status": DocumentStatus.COMPLETED,
-                    "error_message": None,
-                    "processed_chunks": chunk_count,
-                    "summary": summary
-                }
+                summary,
+                chunk_count,
+                db
             )
             
             logger.info(f"Document {document_id} processed successfully with {chunk_count} chunks")
             
         except MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for document {document_id}")
-            await doc_repo.update(
+            await DOCUMENT_REPO.set_failed(
                 document_id,
-                {
-                    "status": DocumentStatus.FAILED,
-                    "error_message": "Processing failed after maximum retries"
-                }
+                "Processing failed after maximum retries",
+                db
             )
         except Exception as e:
             logger.error(f"Failed to process document {document_id}: {e}", exc_info=True)
-            await doc_repo.update(
+            await DOCUMENT_REPO.set_failed(
                 document_id,
-                {
-                    "status": DocumentStatus.FAILED,
-                    "error_message": str(e)
-                }
+                str(e),
+                db
             )
             raise  # Let Celery handle the retry
 
     # Run the async function using asyncio.run()
     try:
-        return asyncio.run(_ingest())
+        return asyncio.run(_ingest(get_db().__next__()))
     except Exception as e:
         logger.error(f"Failed to run async process for document {document_id}: {e}", exc_info=True)
         raise
@@ -299,7 +282,7 @@ def initiate_rag_retrieval(
     content_type, sources, and status. No services or repositories are newly instantiated here, ensuring efficiency.
     """
 
-    async def _retrieve(db: Session = Depends(get_db)):
+    async def _retrieve(db: Session):
         try:
             # Fetch user message using the cached repository instance
             user_msg = await MESSAGE_REPO.get_by_id(user_message_id, db)
@@ -341,26 +324,4 @@ def initiate_rag_retrieval(
             await MESSAGE_REPO.set_failed(assistant_message_id, str(e), db)
             raise
 
-    return asyncio.run(_retrieve())
-
-def _get_chunk_size(document_type: DocumentType) -> ChunkSize:
-    """
-    Get appropriate chunk size based on document type.
-    
-    Args:
-        document_type: Type of document
-        
-    Returns:
-        ChunkSize enum value
-    """
-    chunk_sizes = {
-        DocumentType.PDF: ChunkSize.MEDIUM,
-        DocumentType.TXT: ChunkSize.MEDIUM,
-        DocumentType.DOCX: ChunkSize.MEDIUM,
-        DocumentType.DOC: ChunkSize.MEDIUM,
-        DocumentType.JPG: ChunkSize.MEDIUM,
-        DocumentType.PNG: ChunkSize.MEDIUM,
-        DocumentType.GIF: ChunkSize.MEDIUM,
-    }
-    
-    return chunk_sizes.get(document_type, ChunkSize.MEDIUM) 
+    return asyncio.run(_retrieve(get_db().__next__()))

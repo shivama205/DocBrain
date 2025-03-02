@@ -8,7 +8,7 @@ class DocumentStatus(str, enum.Enum):
     """Document processing status"""
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
+    PROCESSED = "PROCESSED"
     FAILED = "FAILED"
 
 class DocumentType(str, enum.Enum):
@@ -20,6 +20,10 @@ class DocumentType(str, enum.Enum):
     TIFF = "image/tiff"
     DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     DOC = "application/msword"
+    CSV = "text/csv"
+    EXCEL = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    MARKDOWN = "text/markdown"
+    MD = "text/markdown"
     TXT = "text/plain"
 
 class Document(BaseModel):

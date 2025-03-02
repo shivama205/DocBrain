@@ -12,7 +12,7 @@ class ChunkerFactory:
     """
     
     @staticmethod
-    def create_chunker(document_type: str) -> Chunker:
+    def create_chunker(document_type: DocumentType) -> Chunker:
         """
         Create a chunker based on document type.
         
@@ -44,7 +44,7 @@ class ChunkerFactory:
             logger.info("Creating chunker from metadata")
             
             # Extract document type from metadata
-            document_type = metadata.get('document_type', DocumentType.UNSTRUCTURED_TEXT)
+            document_type = metadata.get('document_type', DocumentType.TXT)
             
             # Create chunker based on document type
             return ChunkerFactory.create_chunker(document_type)

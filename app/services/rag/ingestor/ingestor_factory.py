@@ -2,6 +2,7 @@ from typing import Dict, Any, Optional
 import logging
 import mimetypes
 
+from app.db.models.knowledge_base import DocumentType
 from app.services.rag.ingestor.ingestor import CSVIngestor, ImageIngestor, Ingestor, MarkdownIngestor, PDFIngestor, TextIngestor
 
 
@@ -13,7 +14,7 @@ class IngestorFactory:
     """
     
     @staticmethod
-    def create_ingestor(content_type: str) -> Ingestor:
+    def create_ingestor(content_type: DocumentType) -> Ingestor:
         """
         Create an ingestor based on content type.
         
@@ -33,23 +34,23 @@ class IngestorFactory:
             content_type = content_type.lower()
             
             # Map content types to ingestors
-            if content_type in ['application/pdf', 'pdf']:
+            if content_type == DocumentType.PDF:
                 logger.info("Creating PDFIngestor")
                 return PDFIngestor()
             
-            elif content_type in ['text/csv', 'application/csv', 'csv']:
+            elif content_type in [DocumentType.CSV, DocumentType.EXCEL]:
                 logger.info("Creating CSVIngestor")
                 return CSVIngestor()
             
-            elif content_type in ['text/markdown', 'markdown', 'md']:
+            elif content_type in [DocumentType.MARKDOWN, DocumentType.MD]:
                 logger.info("Creating MarkdownIngestor")
                 return MarkdownIngestor()
             
-            elif content_type.startswith('image/'):
+            elif content_type in [DocumentType.JPG, DocumentType.PNG, DocumentType.GIF, DocumentType.TIFF]:
                 logger.info("Creating ImageIngestor")
                 return ImageIngestor()
             
-            elif content_type.startswith('text/'):
+            elif content_type in [DocumentType.TXT, DocumentType.DOC, DocumentType.DOCX]:
                 logger.info("Creating TextIngestor")
                 return TextIngestor()
             
