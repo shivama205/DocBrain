@@ -6,12 +6,17 @@ Welcome to the DocBrain documentation. This directory contains comprehensive doc
 
 - [RAG Service Architecture](architecture/rag_service.md) - Detailed explanation of the Retrieval-Augmented Generation service architecture
 - [Document Flow](architecture/document_flow.md) - Document upload and processing flow
+- [Technical Architecture](doc_tech.md) - Overview of the DocBrain technology architecture
 
 ## User Guides
 
 - [Setup Guide](guides/setup.md) - How to set up and configure DocBrain
 - [Deployment Guide](guides/deployment.md) - How to deploy DocBrain to production
 - [Usage Guide](guides/usage.md) - How to use DocBrain effectively
+
+## Troubleshooting
+
+- [macOS Troubleshooting](guides/macos_troubleshooting.md) - Solutions for common issues on macOS, including segmentation faults with Celery workers and ML models
 
 ## API Documentation
 

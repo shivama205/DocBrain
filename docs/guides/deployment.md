@@ -118,6 +118,34 @@ docker-compose -f docker-compose.prod.yml exec app alembic upgrade head
 docker-compose -f docker-compose.prod.yml exec app python -m scripts.create_admin
 ```
 
+## Running Celery Workers
+
+DocBrain uses Celery workers for asynchronous tasks such as document ingestion and vector deletion. There are special considerations for running workers, especially on macOS.
+
+### Starting Workers on Linux/Windows
+
+On Linux or Windows, you can start the workers using Docker Compose:
+
+```bash
+docker-compose -f docker-compose.prod.yml up -d worker
+```
+
+### Starting Workers on macOS
+
+On macOS, there are known issues with PyTorch, Metal Performance Shaders (MPS), and Python's multiprocessing that can cause crashes. To avoid these issues, use the provided restart script:
+
+```bash
+./restart_worker.sh
+```
+
+This script:
+- Stops any running workers
+- Sets necessary environment variables to disable MPS/GPU acceleration
+- Pre-initializes ML models in the main process before forking
+- Starts the worker with the correct configuration
+
+If you're running in a development environment on macOS, this script is the recommended way to start workers to avoid segmentation faults.
+
 ## Kubernetes Deployment
 
 For Kubernetes deployment, refer to the Kubernetes manifests in the `kubernetes` directory.
@@ -167,5 +195,21 @@ If you encounter issues with your deployment, check the logs:
 docker-compose -f docker-compose.prod.yml logs -f app
 docker-compose -f docker-compose.prod.yml logs -f worker
 ```
+
+### macOS-Specific Issues
+
+If you encounter segmentation faults or crashes on macOS with error messages like:
+
+```
+objc[xxxxx]: +[MPSGraphObject initialize] may have been in progress in another thread when fork() was called.
+objc[xxxxx]: +[MPSGraphObject initialize] may have been in progress in another thread when fork() was called. We cannot safely call it or ignore it in the fork() child process. Crashing instead.
+```
+
+Make sure you're using the `restart_worker.sh` script to start the workers. This script implements several safeguards:
+
+1. Sets environment variables to disable MPS/GPU acceleration
+2. Uses 'spawn' instead of 'fork' for multiprocessing
+3. Uses the 'solo' pool for Celery workers
+4. Pre-initializes models before any forking occurs
 
 For more detailed troubleshooting, refer to the [Troubleshooting Guide](troubleshooting.md).
