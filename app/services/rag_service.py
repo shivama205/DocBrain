@@ -139,19 +139,19 @@ class RAGService:
             
             # Create retriever using the provided knowledge_base_id
             retriever = RetrieverFactory.create_retriever(knowledge_base_id)
-            
-            # Determine whether to rerank
-            should_rerank = True
 
             # Retrieve chunks
             chunks = await retriever.search(
                 query=query,
-                top_k=top_k * 2 if should_rerank else top_k,  # Retrieve more if reranking
+                top_k=top_k * 2, # always retrive twice to decide whether to rerank
                 similarity_threshold=similarity_threshold,
                 metadata_filter=metadata_filter
             )
             logger.info(f"Retrieved {len(chunks)} chunks")
             
+            # True if number of chunks is higher than top_k
+            should_rerank = True if len(chunks) > top_k else False
+
             # Rerank chunks if enabled
             if should_rerank and chunks:
                 logger.info("Reranking chunks")

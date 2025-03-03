@@ -103,11 +103,51 @@ class VectorStore:
         try:
             logger.info(f"Attempting to delete chunks for document {document_id} in knowledge base {knowledge_base_id}")
             
-            # Use knowledge_base_id as namespace and filter by document_id
-            self.index.delete(
-                filter={"document_id": {"$eq": str(document_id)}},
-                namespace=knowledge_base_id
-            )
+            # First, fetch all vector IDs for this document by querying with the document_id
+            try:
+                # Try to use metadata filtering first (works on Standard and Enterprise tiers)
+                self.index.delete(
+                    filter={"document_id": {"$eq": str(document_id)}},
+                    namespace=knowledge_base_id
+                )
+                logger.info(f"Successfully deleted chunks using metadata filter for document {document_id}")
+                return
+            except Exception as e:
+                # If metadata filtering fails (Serverless and Starter tiers), use vector IDs
+                if "Serverless and Starter indexes do not support deleting with metadata filtering" in str(e):
+                    logger.info("Pinecone Serverless/Starter tier detected, switching to ID-based deletion")
+                    
+                    # Query to get all vectors for this document
+                    # We need to use a dummy vector for the query
+                    dummy_vector = [0.0] * self.dimension
+                    
+                    # Query with a high top_k to get all vectors for this document
+                    results = self.index.query(
+                        vector=dummy_vector,
+                        top_k=10000,  # Set a high limit to get all vectors
+                        include_metadata=True,
+                        namespace=knowledge_base_id
+                    )
+                    
+                    # Filter results to only include vectors for this document
+                    vector_ids = []
+                    for match in results.matches:
+                        if match.metadata and match.metadata.get('document_id') == str(document_id):
+                            vector_ids.append(match.id)
+                    
+                    if vector_ids:
+                        logger.info(f"Found {len(vector_ids)} vectors to delete for document {document_id}")
+                        # Delete vectors by ID
+                        self.index.delete(
+                            ids=vector_ids,
+                            namespace=knowledge_base_id
+                        )
+                        logger.info(f"Successfully deleted {len(vector_ids)} vectors by ID for document {document_id}")
+                    else:
+                        logger.info(f"No vectors found for document {document_id} in knowledge base {knowledge_base_id}")
+                else:
+                    # If it's a different error, re-raise it
+                    raise
             
             logger.info(f"Successfully deleted chunks for document {document_id} in knowledge base {knowledge_base_id}")
             

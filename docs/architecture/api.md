@@ -123,10 +123,11 @@ Delete a knowledge base.
 
 ### POST /knowledge-bases/{kb_id}/documents
 
-Upload a document to a knowledge base.
+Create a new document in a knowledge base.
 
 **Request:**
-Form data with file upload.
+Multipart form data with:
+- `file`: The document file to upload
 
 **Response:**
 ```json

@@ -166,15 +166,16 @@ class MultiLevelChunker(Chunker):
             
             # Determine chunk size in characters
             size_map = {
-                ChunkSize.SMALL: 1000,
-                ChunkSize.MEDIUM: 2000,
-                ChunkSize.LARGE: 4000
+                ChunkSize.SMALL: 128,
+                ChunkSize.MEDIUM: 256,
+                ChunkSize.LARGE: 512
             }
-            target_size = size_map.get(chunk_size, 2000)
+            target_size = size_map.get(chunk_size, 256)
             
             # Extract headers and sections
+            logger.info(f"markdown text: {text}")
             sections = self._extract_sections(text)
-            
+            logger.info(f"sections: {sections}")
             # Create chunks
             chunks = []
             chunk_index = 0

@@ -303,8 +303,11 @@ class ImageIngestor(Ingestor):
         try:
             logger.info("Ingesting image document with docling v2 OCR")
             
-            # Create a file-like object from bytes
-            image_file = io.BytesIO(content)
+            # Convert to document stream
+            content_stream = DocumentStream(
+                name=metadata.get("title", "temp.png"),
+                stream=io.BytesIO(content)
+            )
             
             # Set up the document converter with IMAGE format options
             doc_converter = DocumentConverter(
@@ -312,7 +315,7 @@ class ImageIngestor(Ingestor):
             )
             
             # Convert the image file
-            conv_result = doc_converter.convert(image_file)
+            conv_result = doc_converter.convert(source=content_stream)
             
             # Get text from docling document
             text = conv_result.document.export_to_text()

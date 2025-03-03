@@ -230,12 +230,19 @@ def initiate_document_vector_deletion(self, document_id: str) -> None:
             # Check if this is a Pinecone API error
             if "400" in error_msg and "Bad Request" in error_msg:
                 logger.warning(f"Pinecone API error (400 Bad Request) for document {document_id}")
-                logger.warning("This may be due to an invalid filter format or the document not existing in the index")
                 
-                # We'll consider this a "success" since the document doesn't exist in Pinecone
-                # This prevents endless retries for a document that might not be in the index
-                logger.info(f"Marking document {document_id} vector deletion as complete despite error")
-                return True
+                # Check specifically for the Serverless/Starter tier error
+                if "Serverless and Starter indexes do not support deleting with metadata filtering" in error_msg:
+                    logger.warning("This error is expected with Pinecone Serverless/Starter tiers")
+                    logger.warning("The vector_store.py and pinecone_retriever.py have been updated to handle this case")
+                    logger.warning("Please retry the document deletion")
+                    # We'll raise the exception to trigger a retry, as our updated code should handle it
+                    raise
+                else:
+                    logger.warning("This may be due to an invalid filter format or the document not existing in the index")
+                    # We'll consider this a "success" since we can't do anything about it
+                    logger.info(f"Marking document {document_id} vector deletion as complete despite error")
+                    return True
             
             raise
 
