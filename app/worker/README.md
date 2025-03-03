@@ -2,6 +2,21 @@
 
 This directory contains the Celery worker configuration and tasks for DocBrain.
 
+## Celery Configuration
+
+The Celery configuration is consolidated in a single file:
+- `celery.py`: Contains all Celery configuration and worker startup logic
+
+## Model Initialization
+
+One of the key improvements in this codebase is the pre-initialization of ML models:
+
+1. **Pre-initialization**: Models are loaded in the main process before any forking occurs
+2. **Singleton Pattern**: Factory classes use a singleton pattern to ensure models are only initialized once
+3. **CPU-only Mode**: Models are configured to use CPU only on macOS to avoid MPS issues
+
+This approach prevents segmentation faults that can occur when models are initialized after forking.
+
 ## macOS Compatibility
 
 When running on macOS, there are known issues with PyTorch, Metal Performance Shaders (MPS), and Python's multiprocessing that can cause crashes with error messages like:
@@ -19,6 +34,8 @@ To avoid these issues, we've implemented several safeguards:
 2. Using 'spawn' instead of 'fork' for multiprocessing
 3. Using the 'solo' pool for Celery workers
 4. Configuring worker settings to minimize memory issues
+5. Pre-initializing models before any forking occurs
+6. Using singleton patterns for model instances
 
 ### Running the Worker
 
@@ -31,6 +48,7 @@ The recommended way to start the worker on macOS is to use the `restart_worker.s
 This script:
 - Stops any running workers
 - Sets the necessary environment variables
+- Pre-initializes ML models in the main process
 - Starts the worker with the correct configuration
 
 ### Manual Configuration
@@ -49,7 +67,7 @@ If you need to start the worker manually, make sure to:
 
 2. Start the worker with the solo pool:
    ```bash
-   celery -A app.worker.celery worker --loglevel=info -E --pool=solo
+   python -m app.worker.celery
    ```
 
 ## Troubleshooting

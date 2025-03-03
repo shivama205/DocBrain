@@ -9,7 +9,8 @@
 # The script:
 # 1. Stops any running Celery workers
 # 2. Sets environment variables to prevent MPS/GPU issues
-# 3. Starts the worker with the correct configuration
+# 3. Pre-initializes ML models in the main process before forking
+# 4. Starts the worker with the correct configuration
 #
 # Usage: ./restart_worker.sh
 # =====================================================================
@@ -29,9 +30,10 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
-# Start the Celery worker with the solo pool
-echo "Starting Celery worker with solo pool..."
+# Start the Celery worker with consolidated configuration
+# This will pre-initialize models before forking to prevent segmentation faults
+echo "Starting Celery worker with consolidated configuration..."
 cd "$(dirname "$0")"
-python -m app.worker.run_worker
+python -m app.worker.celery
 
 echo "Worker started. Check logs for details." 
