@@ -13,6 +13,10 @@ A flexible and extensible Retrieval-Augmented Generation (RAG) framework for bui
 - **LLM Integration**: Generate accurate, context-aware responses using language models
 - **Customizable Pipeline**: Adapt each component to your specific use case
 
+## Related Projects
+
+- **[DocBrain-UI](https://github.com/shivama205/DocBrain-UI)**: Frontend interface for this RAG framework
+
 ## Installation
 
 ```bash
@@ -48,13 +52,23 @@ print(response)
 
 See the [examples](./examples) directory for more detailed usage examples.
 
+## User Interface
+
+This framework has a companion frontend project available at [DocBrain-UI](https://github.com/shivama205/DocBrain-UI). The UI provides:
+
+- Document upload and management
+- Interactive query interface
+- Visualization of retrieval results
+- User-friendly settings configuration
+
+To use the complete system, set up both this backend and the frontend repository.
+
 ## Future Work
 
 - **Retriever Router**: Intelligent routing between different retrieval methods based on query type
 - **CSV/Excel Data Handling**: Support for structured data sources and tabular information
 - **LLM Factory**: Abstraction layer for multiple LLM providers (OpenAI, Anthropic, HuggingFace, etc.)
 - **Evaluation Framework**: Tools to measure and improve RAG performance
-- **Web UI**: Simple interface for document management and querying
 - **Streaming Responses**: Support for streaming LLM responses in real-time
 
 ## Contributing
