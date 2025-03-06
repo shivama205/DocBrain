@@ -1,3 +1,5 @@
+![DocBrain-Banner-3](https://github.com/user-attachments/assets/6c882743-a60e-4efd-b1b7-13f83167e38e)
+
 # DocBrain - Self-Hosted RAG Framework
 
 ![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
