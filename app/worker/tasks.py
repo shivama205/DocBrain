@@ -8,6 +8,7 @@ import google.generativeai as genai
 
 from sqlalchemy.orm import Session
 from app.db.database import get_db
+from app.db.models.knowledge_base import DocumentType
 from app.db.models.message import MessageContentType
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentResponse
@@ -62,21 +63,23 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             await DOCUMENT_REPO.set_processing(document_id, db)
             
             # Generate document summary
-            logger.info(f"Generating summary for document {document_id}")
-            summary = await _generate_document_summary(
-                document.content, 
-                document.title
-            )
+            if document.content_type == DocumentType.CSV:
+                summary = ""
+            else:
+                logger.info(f"Generating summary for document {document_id}")
+                summary = await _generate_document_summary(
+                    document.content, 
+                    document.title
+                )
             logger.info(f"Summary generated for document {document_id}")
-
+            
             # Prepare metadata
             metadata = {
                 "document_id": document_id,
-                "title": document.title,
                 "document_title": document.title,
                 "content_type": document.content_type,
                 "knowledge_base_id": document.knowledge_base_id,
-                "document_type": document.content_type
+                "document_type": document.content_type,
             }
             
             # Method 1: Use RAG service for end-to-end processing
@@ -87,34 +90,6 @@ def initiate_document_ingestion(self, document_id: str) -> None:
                 content_type=document.content_type,
             )
             chunk_count = result["chunk_count"]
-            
-            # Method 2: Process step by step (alternative approach with more control)
-            # Uncomment this section if you need more control over the ingestion process
-            """
-            # Create ingestor based on content type
-            ingestor = IngestorFactory.create_ingestor(document.content_type)
-            
-            # Ingest document
-            ingestion_result = await ingestor.ingest(content, metadata)
-            
-            # Extract text and enhanced metadata
-            text = ingestion_result["text"]
-            enhanced_metadata = ingestion_result["metadata"]
-            
-            # Create chunker based on document type
-            chunker = ChunkerFactory.create_chunker_from_metadata(enhanced_metadata)
-            
-            # Chunk document
-            chunks = await chunker.chunk(text, enhanced_metadata, _get_chunk_size(document_type))
-            
-            # Create retriever
-            retriever = RetrieverFactory.create_retriever(document.knowledge_base_id)
-            
-            # Store chunks in vector store
-            await retriever.add_chunks(chunks)
-            
-            chunk_count = len(chunks)
-            """
             
             # Update document with summary and status
             await DOCUMENT_REPO.set_processed(

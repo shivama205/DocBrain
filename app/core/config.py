@@ -64,6 +64,18 @@ class Settings(BaseSettings):
 
     # CORS
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+
+    # Storage
+    STORAGE_HOST: str = os.getenv("STORAGE_HOST", "localhost")
+    STORAGE_PORT: int = int(os.getenv("STORAGE_PORT", "3306"))
+    STORAGE_USER: str = os.getenv("STORAGE_USER", "docbrain")
+    STORAGE_PASSWORD: str = os.getenv("STORAGE_PASSWORD", "docbrain")
+    STORAGE_DATABASE: str = os.getenv("STORAGE_DATABASE", "storage_docbrain")
+
+    @property
+    def STORAGE_URL(self) -> str:
+        """Get SQLAlchemy database URL"""
+        return f"mysql://{self.STORAGE_USER}:{self.STORAGE_PASSWORD}@{self.STORAGE_HOST}:{self.STORAGE_PORT}/{self.STORAGE_DATABASE}"
     
     @field_validator("BACKEND_CORS_ORIGINS")
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:

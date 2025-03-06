@@ -100,6 +100,8 @@ class DocumentService:
             return DocumentType.DOCX
         if 'application/msword' in content_type:
             return DocumentType.DOC
+        if 'text/csv' in content_type:
+            return DocumentType.CSV
         if 'text/plain' in content_type:
             return DocumentType.TXT
         return DocumentType.TXT

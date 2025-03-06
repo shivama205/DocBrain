@@ -170,40 +170,62 @@ class MultiLevelChunker(Chunker):
                 ChunkSize.MEDIUM: 256,
                 ChunkSize.LARGE: 512
             }
-            target_size = size_map.get(chunk_size, 256)
             
             # Extract headers and sections
-            logger.info(f"markdown text: {text}")
             sections = self._extract_sections(text)
-            logger.info(f"sections: {sections}")
-            # Create chunks
+
             chunks = []
             chunk_index = 0
-            
-            for section in sections:
-                section_text = section["text"]
-                section_path = section["path"]
-                section_header = section["header"]
-                
-                # Skip empty sections
-                if not section_text.strip():
-                    continue
-                
-                # Split section into paragraphs
-                paragraphs = re.split(r'\n\s*\n', section_text)
-                
-                # Create chunks from paragraphs
-                current_chunk = ""
-                current_size = 0
-                
-                for paragraph in paragraphs:
-                    paragraph = paragraph.strip()
-                    if not paragraph:
+
+            for target_size in size_map.values():
+                for section in sections:
+                    section_text = section["text"]
+                    section_path = section["path"]
+                    section_header = section["header"]
+                    
+                    # Skip empty sections
+                    if not section_text.strip():
                         continue
                     
-                    # If adding this paragraph would exceed the target size, start a new chunk
-                    if current_size + len(paragraph) > target_size and current_chunk:
-                        # Create chunk
+                    # Split section into paragraphs
+                    paragraphs = re.split(r'\n\s*\n', section_text)
+                    
+                    # Create chunks from paragraphs
+                    current_chunk = ""
+                    current_size = 0
+                    
+                    for paragraph in paragraphs:
+                        paragraph = paragraph.strip()
+                        if not paragraph:
+                            continue
+                        
+                        # If adding this paragraph would exceed the target size, start a new chunk
+                        if current_size + len(paragraph) > target_size and current_chunk:
+                            # Create chunk
+                            chunk_metadata = {
+                                **metadata,
+                                "chunk_index": chunk_index,
+                                "chunk_size": chunk_size,
+                                "nearest_header": section_header,
+                                "section_path": section_path
+                            }
+                            
+                            chunks.append({
+                                "content": current_chunk.strip(),
+                                "metadata": chunk_metadata
+                            })
+                            
+                            # Reset for next chunk
+                            current_chunk = ""
+                            current_size = 0
+                            chunk_index += 1
+                        
+                        # Add paragraph to current chunk
+                        current_chunk += paragraph + "\n\n"
+                        current_size += len(paragraph)
+                    
+                    # Add the last chunk if it's not empty
+                    if current_chunk:
                         chunk_metadata = {
                             **metadata,
                             "chunk_index": chunk_index,
@@ -217,33 +239,9 @@ class MultiLevelChunker(Chunker):
                             "metadata": chunk_metadata
                         })
                         
-                        # Reset for next chunk
-                        current_chunk = ""
-                        current_size = 0
                         chunk_index += 1
-                    
-                    # Add paragraph to current chunk
-                    current_chunk += paragraph + "\n\n"
-                    current_size += len(paragraph)
                 
-                # Add the last chunk if it's not empty
-                if current_chunk:
-                    chunk_metadata = {
-                        **metadata,
-                        "chunk_index": chunk_index,
-                        "chunk_size": chunk_size,
-                        "nearest_header": section_header,
-                        "section_path": section_path
-                    }
-                    
-                    chunks.append({
-                        "content": current_chunk.strip(),
-                        "metadata": chunk_metadata
-                    })
-                    
-                    chunk_index += 1
-            
-            logger.info(f"Created {len(chunks)} chunks with MultiLevelChunker")
+                chunk_index = 0
             
             return chunks
             

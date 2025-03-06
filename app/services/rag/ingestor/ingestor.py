@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from datetime import datetime
+import re
+from typing import Dict, Any, List
 import logging
 import io
 import os  # Added for environment variables
@@ -8,12 +10,18 @@ import csv
 import markdown
 from PIL import Image
 import pytesseract
+import google.generativeai as genai
+
+from app.core.config import settings
 
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import DocumentStream
+
+from app.db.storage import get_storage_db
+from app.repositories.storage_repository import StorageRepository
 
 logger = logging.getLogger(__name__)
 
@@ -185,38 +193,64 @@ class CSVIngestor(Ingestor):
             # Read CSV
             csv_reader = csv.reader(csv_file)
             rows = list(csv_reader)
-            
-            # Extract headers if available
+
+            # Extract headers
             headers = rows[0] if rows else []
             
-            # Convert to text
-            text = ""
-            if headers:
-                text += "Headers: " + ", ".join(headers) + "\n\n"
+            # Generate create table query
+            table_name = metadata.get("document_title", f"csv_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}").replace(".csv", "")
+            create_table_query = CSVIngestor.generate_create_table_query(table_name, headers, rows[1:10])
             
-            for i, row in enumerate(rows[1:], 1):
-                text += f"Row {i}: " + ", ".join(row) + "\n"
-            
-            # Enhance metadata
-            enhanced_metadata = {
-                **metadata,
-                "row_count": len(rows) - 1 if rows else 0,
-                "column_count": len(headers),
-                "headers": headers,
-                "document_type": "csv"
-            }
-            
-            logger.info(f"Successfully ingested CSV with {enhanced_metadata['row_count']} rows and {enhanced_metadata['column_count']} columns")
-            
+            # insert into storage database as new table
+            storage_session = next(get_storage_db())
+
+            await StorageRepository.insert_csv(storage_session, table_name, create_table_query, headers, rows[1:])
+
+            logger.info(f"Successfully ingested CSV with {len(rows) - 1 if rows else 0} rows and {len(headers)} columns")
+
             return {
-                "text": text,
-                "metadata": enhanced_metadata,
-                "rows": rows
-            }
-            
+                "text": create_table_query,
+                "metadata": {
+                    **metadata,
+                    "table_name": table_name,
+                    "document_type": "csv",
+                    "headers": headers,
+                    "row_count": len(rows) - 1 if rows else 0,
+                    "column_count": len(headers),
+                },
+            }            
+
         except Exception as e:
             logger.error(f"Failed to ingest CSV: {e}", exc_info=True)
             raise
+
+    @staticmethod
+    def generate_create_table_query(table_name: str, headers: List[str], rows: List[List[str]]) -> str:
+        """
+        Generate a create table query for the given table name and rows.
+        """
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        prompt = f"""
+        Generate a sql database create table query for the given table name and headers. 
+        Make sure to use headers as column names and rows as sample data.
+        Rows contain sample data for the table. 
+
+        Use your understanding to extrapolate scenario where datatype is not obvious, or might be different from the sample data.
+        
+        Example: CREATE TABLE IF NOT EXISTS {table_name} (
+            {headers[0]} VARCHAR(255) NOT NULL,
+            {headers[1]} VARCHAR(255) NULL,
+            {headers[2]} INTEGER DEFAULT 0
+        );
+
+        Table name: {table_name}
+        Headers: {headers}
+        Rows: {rows}
+        """.format(table_name=table_name, headers=headers, rows=rows)
+        response = model.generate_content(prompt)
+        sql_query = re.search(r"```sql(.*)```", response.text, re.DOTALL).group(1)
+        return sql_query
 
 class MarkdownIngestor(Ingestor):
     """
@@ -657,7 +691,6 @@ def html_to_markdown(html_text):
     
     return text
 
-class MultiFormatIngestor(Ingestor):
     """
     Unified ingestor that can handle multiple document formats using docling v2.
     Supports PDF, DOCX, PPTX, HTML, and images.
@@ -809,6 +842,12 @@ class MultiFormatIngestor(Ingestor):
                 elif input_format == InputFormat.IMAGE:
                     image_ingestor = ImageIngestor()
                     return await image_ingestor.ingest(content, metadata)
+                elif input_format == InputFormat.DOCX:
+                    docx_ingestor = DocxIngestor()
+                    return await docx_ingestor.ingest(content, metadata)
+                elif input_format == InputFormat.CSV:
+                    csv_ingestor = CSVIngestor()
+                    return await csv_ingestor.ingest(content, metadata)
                 elif input_format == InputFormat.HTML:
                     # Use the fallback method directly
                     html_text = content.decode('utf-8')
