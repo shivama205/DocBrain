@@ -1,13 +1,193 @@
 # DocBrain Enhancement Roadmap
 
-This roadmap outlines the planned enhancements to DocBrain's RAG (Retrieval-Augmented Generation) capabilities, inspired by advanced techniques from other implementations like DeepSeek-RAG-Chatbot.
+This roadmap outlines the planned enhancements to DocBrain, our self-hosted RAG (Retrieval-Augmented Generation) framework focused on privacy, security, and modularity.
 
-## Phase 1: Core RAG Improvements
+## Phase 1: Core RAG Capabilities
 
-### 1. Neural Reranking with Cross-Encoder
+### 1. TAG (Table Augmented Generation)
 
 **Priority: High**
-**Timeline: Q2 2025**
+
+Enable reasoning over tabular data for more accurate responses to queries involving structured information.
+
+**Features:**
+- Table detection and extraction from documents
+- Specialized embeddings for tabular data
+- SQL-like query capability over embedded tables
+- LLM prompt engineering for tabular reasoning
+
+**Implementation approach:**
+- Implement table structure preservation during ingestion
+- Create specialized embedding techniques for tables
+- Develop retrieval methods optimized for tabular data
+- Design prompting strategies for table-based reasoning
+
+### 2. Advanced Document Ingestors
+
+**Priority: High**
+
+Add support for additional document formats with focus on structured data extraction.
+
+**Document Types:**
+- CSV / Excel spreadsheets
+- DOCX / Word documents
+- HTML with table extraction
+- PDF tables and forms
+- Markdown with formatted content
+
+**Implementation approach:**
+- Create specialized extractors for each format
+- Focus on maintaining structural information
+- Implement metadata extraction
+- Build chunking strategies optimized for each format
+
+### 3. Retrieval Router
+
+**Priority: High**
+
+Implement intelligent routing between different retrieval methods based on query type.
+
+**Components:**
+- Query classifier to determine optimal retrieval strategy
+- Multiple retrieval pipelines optimized for different query types
+- Hybrid retrieval combining vector and keyword search
+- Query reformulation for improved retrieval
+
+**Implementation approach:**
+- Train/implement query classifier
+- Support BM25/keyword search alongside vector search
+- Create rules engine for routing decisions
+- Implement query-specific reranking strategies
+
+## Phase 2: Provider Integrations
+
+### 4. Multiple LLM Provider Support
+
+**Priority: High**
+
+Expand beyond Google Gemini to support multiple LLM providers.
+
+**Target Implementations:**
+- OpenAI (GPT-3.5, GPT-4)
+- Anthropic (Claude)
+- HuggingFace models
+- Mistral AI
+
+**Implementation approach:**
+- Create provider-agnostic interface for LLM interactions
+- Implement provider-specific adapters
+- Add configuration for model selection and parameters
+- Support for API key management and usage tracking
+
+### 5. Multiple Vector Database Support
+
+**Priority: Medium**
+
+Extend beyond the current Pinecone implementation to support additional vector databases.
+
+**Target Implementations:**
+- Weaviate
+- Qdrant
+- Chroma
+
+**Implementation approach:**
+- Create abstraction layer for vector store operations
+- Implement provider-specific adapters
+- Add configuration options for each provider
+- Provide migration utilities between providers
+
+### 6. RAG Evaluation Framework
+
+**Priority: Medium**
+
+Integrate with RAGAS and custom metrics to measure and improve RAG performance.
+
+**Metrics:**
+- Faithfulness (answer accuracy relative to context)
+- Answer relevance
+- Context relevance
+- Context recall
+- Groundedness
+
+**Implementation approach:**
+- Integrate RAGAS evaluation framework
+- Add custom evaluation metrics
+- Create evaluation datasets
+- Build dashboard for tracking performance
+- Implement automated testing using evaluation metrics
+
+### 7. Streaming Responses
+
+**Priority: Low**
+
+Support for streaming LLM responses in real-time.
+
+**Features:**
+- Server-sent events (SSE) API
+- Progressive chunk loading
+- Token-by-token streaming
+- Citation generation during streaming
+
+**Implementation approach:**
+- Implement streaming-compatible API endpoints
+- Create streaming adapter for LLM providers
+- Update frontend to handle streaming responses
+- Add support for citation tracking during streaming
+
+## Phase 3: Enterprise Features
+
+### 8. Access Control
+
+**Priority: High**
+
+Implement document-level permission system.
+
+**Features:**
+- Role-based access control
+- Document-level permissions
+- Content redaction based on permissions
+- Audit logging for access events
+
+**Implementation approach:**
+- Design permission model
+- Implement authentication integration
+- Add permission checking during retrieval
+- Create management interface for permissions
+
+### 9. Audit Trails
+
+**Priority: Medium**
+
+Comprehensive query logging and access monitoring.
+
+**Features:**
+- Query history tracking
+- Document access logging
+- User activity monitoring
+- Compliance reporting
+
+**Implementation approach:**
+- Design audit schema
+- Implement logging middleware
+- Create retention policies
+- Build reporting interface
+
+### 10. Enterprise Deployment Guide
+
+**Priority: Medium**
+
+Comprehensive documentation for production deployments.
+
+**Components:**
+- Docker/Kubernetes deployment templates
+- Security hardening guidelines
+- Scaling recommendations
+- High availability configuration
+- Monitoring setup
+
+### 11. Neural Reranking with Cross-Encoder
+
+**Priority: High**
 
 Implement a cross-encoder reranking step to improve the relevance of retrieved chunks before answer generation.
 
@@ -22,30 +202,11 @@ Implement a cross-encoder reranking step to improve the relevance of retrieved c
 - Score (query, chunk) pairs and reorder chunks by relevance
 - Fall back gracefully if reranking fails
 
-### 2. Hybrid Retrieval (BM25 + Vector Search)
+## Phase 4: Advanced Features
+
+### 12. Hypothetical Document Embeddings (HyDE)
 
 **Priority: Medium**
-**Timeline: Q2-Q3 2024**
-
-Implement a hybrid retrieval approach that combines lexical search (BM25) with semantic search (vector embeddings).
-
-**Benefits:**
-- Improves recall by capturing both keyword matches and semantic similarity
-- Helps with queries containing specific terms that might be missed by vector search alone
-- Particularly valuable for technical or specialized domains
-
-**Implementation approach:**
-- Implement BM25 search alongside vector search
-- Combine and deduplicate results from both approaches
-- Weight and rank combined results
-- Optimize for performance with large document collections
-
-## Phase 2: Advanced RAG Techniques
-
-### 3. Hypothetical Document Embeddings (HyDE)
-
-**Priority: Medium**
-**Timeline: Q3 2024**
 
 Implement the HyDE technique to improve retrieval for complex or abstract queries.
 
@@ -59,10 +220,9 @@ Implement the HyDE technique to improve retrieval for complex or abstract querie
 - Use these hypothetical answers to enhance retrieval
 - Implement as an optional step in the RAG pipeline
 
-### 4. Local LLM Option with Ollama
+### 13. Local LLM Option with Ollama
 
-**Priority: Low**
-**Timeline: Q3-Q4 2024**
+**Priority: Medium**
 
 Add support for local LLM inference using Ollama.
 
@@ -77,33 +237,9 @@ Add support for local LLM inference using Ollama.
 - Provide configuration options for model selection
 - Ensure compatibility with existing code
 
-## Phase 3: Architecture and Performance
-
-### 5. Code Restructuring and Optimization
-
-**Priority: High**
-**Timeline: Ongoing**
-
-Refactor the codebase to improve maintainability, testability, and performance.
-
-**Goals:**
-- Implement clean architecture principles
-- Improve separation of concerns
-- Add comprehensive test coverage
-- Optimize performance bottlenecks
-- Enhance configurability and extensibility
-
-**Implementation approach:**
-- Define clear interfaces between components
-- Use dependency injection for better testability
-- Implement the repository pattern consistently
-- Add configuration options for all RAG pipeline components
-- Improve error handling and logging
-
-### 6. GraphRAG Implementation (Optional)
+### 14. GraphRAG Implementation
 
 **Priority: Low**
-**Timeline: 2025**
 
 Explore graph-based retrieval to capture relationships between entities in documents.
 
@@ -127,6 +263,17 @@ For each enhancement, we will measure:
 3. **Performance Impact**: Latency and resource usage
 4. **User Satisfaction**: Feedback from users on answer quality
 
+## Contributing to the Roadmap
+
+We welcome community input on this roadmap. If you have suggestions for features or prioritization, please:
+
+1. Open an issue with the tag `roadmap-suggestion`
+2. Include a clear description of the feature
+3. Explain the benefit to DocBrain users
+4. Suggest an implementation approach if possible
+
 ## Revision History
 
+- **v1.2** - Updated priorities based on implementation focus (May 2024)
+- **v1.1** - Updated with comprehensive feature list (May 2024)
 - **v1.0** - Initial roadmap created (May 2024) 
