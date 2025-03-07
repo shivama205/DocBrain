@@ -4,23 +4,24 @@ This roadmap outlines the planned enhancements to DocBrain, our self-hosted RAG 
 
 ## Phase 1: Core RAG Capabilities
 
-### 1. TAG (Table Augmented Generation)
+### 1. ✅ TAG (Table Augmented Generation)
 
-**Priority: High**
+**Priority: High** | **Status: Completed**
 
 Enable reasoning over tabular data for more accurate responses to queries involving structured information.
 
 **Features:**
-- Table detection and extraction from documents
-- Specialized embeddings for tabular data
-- SQL-like query capability over embedded tables
-- LLM prompt engineering for tabular reasoning
+- ✅ Table detection and extraction from documents
+- ✅ SQL-like query capability over embedded tables
+- ✅ LLM prompt engineering for tabular reasoning
+- ✅ CSV & Excel document ingestors with table structure preservation
 
-**Implementation approach:**
-- Implement table structure preservation during ingestion
-- Create specialized embedding techniques for tables
-- Develop retrieval methods optimized for tabular data
-- Design prompting strategies for table-based reasoning
+**Implementation Details:**
+- Implemented specialized CSV ingestor with structure preservation
+- Created TAG service for SQL generation from natural language queries
+- Built schema analysis system for effective SQL generation
+- Added table storage in dedicated database for query execution
+- Integrated with query router for intelligent service selection
 
 ### 2. Advanced Document Ingestors
 
@@ -29,7 +30,7 @@ Enable reasoning over tabular data for more accurate responses to queries involv
 Add support for additional document formats with focus on structured data extraction.
 
 **Document Types:**
-- CSV / Excel spreadsheets
+- ✅ CSV / Excel spreadsheets
 - DOCX / Word documents
 - HTML with table extraction
 - PDF tables and forms
@@ -41,23 +42,24 @@ Add support for additional document formats with focus on structured data extrac
 - Implement metadata extraction
 - Build chunking strategies optimized for each format
 
-### 3. Retrieval Router
+### 3. ✅ Retrieval Router
 
-**Priority: High**
+**Priority: High** | **Status: Completed**
 
 Implement intelligent routing between different retrieval methods based on query type.
 
 **Components:**
-- Query classifier to determine optimal retrieval strategy
-- Multiple retrieval pipelines optimized for different query types
-- Hybrid retrieval combining vector and keyword search
-- Query reformulation for improved retrieval
+- ✅ Query classifier to determine optimal retrieval strategy
+- ✅ Multiple retrieval pipelines optimized for different query types
+- ✅ Hybrid retrieval combining different search methods
+- ✅ Query-specific processing paths
 
-**Implementation approach:**
-- Train/implement query classifier
-- Support BM25/keyword search alongside vector search
-- Create rules engine for routing decisions
-- Implement query-specific reranking strategies
+**Implementation Details:**
+- Created QueryRouter class with LLM-based query analysis
+- Implemented routing between RAG and TAG services
+- Added confidence scoring for routing decisions
+- Built fallback mechanisms for uncertain classifications
+- Integrated routing information into response metadata
 
 ## Phase 2: Provider Integrations
 
@@ -274,6 +276,7 @@ We welcome community input on this roadmap. If you have suggestions for features
 
 ## Revision History
 
+- **v1.3** - Updated to mark completion of TAG and Query Router features (May 2024)
 - **v1.2** - Updated priorities based on implementation focus (May 2024)
 - **v1.1** - Updated with comprehensive feature list (May 2024)
 - **v1.0** - Initial roadmap created (May 2024) 

@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Security](https://img.shields.io/badge/security-self--hosted-brightgreen)
 
-A privacy-focused, modular Retrieval-Augmented Generation framework for enterprises requiring full control over their sensitive data. Built for developers who need an alternative to third-party RAG services.
+A privacy-focused, modular Retrieval-Augmented Generation framework for enterprises requiring full control over their sensitive data. Built for developers who need an alternative to third-party RAG services. Now with enhanced query routing and table data support.
 
 ## Why DocBrain?
 
@@ -24,6 +24,8 @@ A privacy-focused, modular Retrieval-Augmented Generation framework for enterpri
 | **Vector Storage** | Currently using Pinecone for development, with plans to support custom vector DBs in the future |
 | **Privacy First**    | No data leaves your environment - self-contained processing pipeline       |
 | **Google Gemini Integration** | Leveraging Google's Gemini model for generating responses, with plans to support multiple LLM providers |
+| **Query Router** | Intelligent routing between different retrieval methods based on query type |
+| **Table Augmented Generation (TAG)** | Enhanced reasoning over tabular data (CSV, Excel) with automatic SQL generation |
 
 ## Project Philosophy
 
@@ -110,21 +112,42 @@ This framework has a companion frontend project available at [DocBrain-UI](https
 
 To use the complete system, set up both this backend and the frontend repository.
 
+## Advanced Features
+
+### Query Router
+
+The Query Router intelligently analyzes incoming queries and routes them to the most appropriate service for processing:
+
+- **Intelligent Query Analysis**: Uses LLM-based classification to determine whether a query requires structured data retrieval (TAG) or traditional document retrieval (RAG)
+- **Query Type Detection**: Automatically identifies queries about statistical information, database content, or tabular data
+- **Confidence Scoring**: Provides confidence scores with each routing decision
+- **Fallback Mechanisms**: Defaults to RAG for unclear queries, ensuring consistent responses
+
+### Table Augmented Generation (TAG)
+
+TAG enhances DocBrain's ability to reason over tabular data:
+
+- **SQL Generation**: Automatically converts natural language queries into SQL
+- **Table Schema Analysis**: Maintains and analyzes the structure of ingested tables
+- **CSV Support**: Specialized ingestors for tabular data formats
+- **Query Execution**: Runs generated SQL against stored tables and formats results
+- **Explanation Generation**: Provides natural language explanations of results alongside the data
+
 ## Roadmap
 
-The following features are planned for future releases:
+DocBrain has an ambitious development roadmap focused on enhancing capabilities while maintaining our commitment to privacy and security.
 
-- **Multiple Vector Database Support**: Add support for alternatives to Pinecone
-- **Multiple LLM Provider Support**: Integration with OpenAI, Anthropic, HuggingFace, etc.
-- **TAG (Table Augmented Generation)**: Enhanced capabilities for reasoning over tabular data
-- **Advanced Document Ingestors**: Support for CSV, DOCX, XLSX, and other formats with tabular data extraction
-- **Retrieval Router**: Intelligent routing between different retrieval methods based on query type
-- **RAG Evaluation Framework**: Integration with RAGAS and custom metrics to measure and improve RAG performance
-- **Streaming Responses**: Support for streaming LLM responses in real-time
-- **Access Control**: Document-level permission system
-- **Audit Trails**: Comprehensive query logging and access monitoring
-- **Enterprise Deployment Guide**: Instructions for production deployments
-- **Migration Tools**: Utilities for transitioning from managed services to self-hosted solutions
+We've recently completed implementation of:
+- ✅ **Table Augmented Generation (TAG)** - SQL-based tabular data querying
+- ✅ **Query Router** - Intelligent routing between retrieval methods
+
+Some planned future features include:
+- **Multiple Vector Database Support** - Alternatives to Pinecone
+- **Multiple LLM Provider Support** - Integration with OpenAI, Anthropic, etc.
+- **RAG Evaluation Framework** - Integration with RAGAS for measuring performance
+- **Access Control** - Document-level permission system
+
+For the full development roadmap with implementation details and planned features, see our [ROADMAP.md](ROADMAP.md) file.
 
 ## Contributing
 
