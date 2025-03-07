@@ -12,15 +12,17 @@ from app.db.models.knowledge_base import DocumentType
 from app.db.models.message import MessageContentType
 from app.repositories.document_repository import DocumentRepository
 from app.schemas.document import DocumentResponse
-from app.services.rag_service import RAGService
+from app.services.rag_service import RAGService, get_rag_service
 from app.repositories.message_repository import MessageRepository
 from app.core.config import settings
+from app.services.rag.vector_store import get_vector_store
+from app.services.query_router import get_query_router
 
 logger = logging.getLogger(__name__)
 
 DOCUMENT_REPO = DocumentRepository()
 MESSAGE_REPO = MessageRepository()
-RAG_SERVICE = RAGService()
+RAG_SERVICE = get_rag_service()
 
 @shared_task(
     bind=True,
@@ -63,14 +65,11 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             await DOCUMENT_REPO.set_processing(document_id, db)
             
             # Generate document summary
-            if document.content_type == DocumentType.CSV:
-                summary = ""
-            else:
-                logger.info(f"Generating summary for document {document_id}")
-                summary = await _generate_document_summary(
-                    document.content, 
-                    document.title
-                )
+            logger.info(f"Generating summary for document {document_id}")
+            summary = await _generate_document_summary(
+                document.content, 
+                document.title
+            )
             logger.info(f"Summary generated for document {document_id}")
             
             # Prepare metadata
@@ -91,6 +90,18 @@ def initiate_document_ingestion(self, document_id: str) -> None:
             )
             chunk_count = result["chunk_count"]
             
+            # Add the summary to the summary index for semantic routing
+            logger.info(f"Adding summary to the summary index for document {document_id}")
+            await RAG_SERVICE.add_document_summary(
+                document_id=document_id,
+                knowledge_base_id=document.knowledge_base_id,
+                document_title=document.title,
+                document_type=document.content_type,
+                summary=summary
+            )
+            
+            logger.info(f"Document {document_id} processed successfully with {chunk_count} chunks")
+            
             # Update document with summary and status
             await DOCUMENT_REPO.set_processed(
                 document_id,
@@ -98,9 +109,6 @@ def initiate_document_ingestion(self, document_id: str) -> None:
                 chunk_count,
                 db
             )
-            
-            logger.info(f"Document {document_id} processed successfully with {chunk_count} chunks")
-            
         except MaxRetriesExceededError:
             logger.error(f"Max retries exceeded for document {document_id}")
             await DOCUMENT_REPO.set_failed(
@@ -191,6 +199,14 @@ def initiate_document_vector_deletion(self, document_id: str) -> None:
             # Delete document
             success = await RAG_SERVICE.delete_document(document_id, knowledge_base_id)
             
+            # Also delete document summary from the summary index
+            logger.info(f"Deleting document summary from summary index for document {document_id}")
+            summary_vector_store = get_vector_store(
+                store_type="pinecone", 
+                index_name=settings.PINECONE_SUMMARY_INDEX_NAME
+            )
+            await summary_vector_store.delete_document_chunks(document_id, "summaries")
+            
             if success:
                 logger.info(f"Successfully deleted vectors for document {document_id} from knowledge base {knowledge_base_id}")
             else:
@@ -250,10 +266,9 @@ def initiate_rag_retrieval(
     user_message_id: str,
     assistant_message_id: str
 ) -> None:
-    """Initiate RAG retrieval for a given user message and update the corresponding assistant message.
-    This implementation fetches the user message (content, content_type, knowledge_base_id), uses a cached RAGService instance,
-    applies system config for top_k and similarity_threshold, and then updates the assistant message with the retrieved answer,
-    content_type, sources, and status. No services or repositories are newly instantiated here, ensuring efficiency.
+    """Initiate query processing for a given user message and update the corresponding assistant message.
+    This implementation first uses the QueryRouter to determine which service to use (RAG or TAG),
+    then explicitly calls the appropriate service based on that decision.
     """
 
     async def _retrieve(db: Session):
@@ -272,21 +287,96 @@ def initiate_rag_retrieval(
 
             # Use the content from the user message as the query
             query = user_msg.content
-
-            # Process query through the RAG pipeline
-            response = await RAG_SERVICE.retrieve(
-                knowledge_base_id=user_msg.knowledge_base_id,
-                query=query,
-                top_k=top_k,
-                similarity_threshold=similarity_threshold
-            )
+            knowledge_base_id = user_msg.knowledge_base_id
+            
+            # Get the query router - this is a singleton
+            query_router = get_query_router()
+            
+            # STEP 1: Get routing decision using the LLM-based router
+            routing_info = await query_router.analyze_query(query)
+            service = routing_info.get("service", "rag")  # Default to RAG service
+            logger.info(f"Router decided to use {service} service with confidence {routing_info.get('confidence', 0)}")
+            logger.info(f"Reasoning: {routing_info.get('reasoning', 'No reasoning provided')}")
+            
+            metadata_filter = {}
+            
+            if service == "tag":
+                logger.info(f"Calling TAG service for text-to-SQL query: '{query}'")
+                # TAG service now directly accesses database schema to generate SQL
+                response = await query_router.tag_service.retrieve(
+                    knowledge_base_id=knowledge_base_id,
+                    query=query,
+                    metadata_filter=metadata_filter
+                )
+                
+                # Add SQL information to the response metadata if available
+                if response.get("sql"):
+                    if not "metadata" in response:
+                        response["metadata"] = {}
+                    response["metadata"]["sql_query"] = response.get("sql")
+                    
+                response["service"] = "tag"
+            else:  # Default to RAG
+                logger.info(f"Calling RAG service for query: '{query}'")
+                response = await query_router.rag_service.retrieve(
+                    knowledge_base_id=knowledge_base_id,
+                    query=query,
+                    top_k=top_k,
+                    similarity_threshold=similarity_threshold,
+                    metadata_filter=metadata_filter
+                )
+                response["service"] = "rag"
+            
+            # Add routing information to the response
+            response["routing_info"] = routing_info
+            
+            # Log which service was used
+            logger.info(f"Successfully processed query using {service} service")
+            
+            # Add routing metadata to the response sources and ensure all required fields are present
+            sources = response.get("sources", [])
+            for i, source in enumerate(sources):
+                # Ensure all required fields are present in each source
+                if "score" not in source:
+                    source["score"] = 1.0 if service == "tag" else source.get("similarity", 0.8)
+                
+                if "content" not in source:
+                    if service == "tag":
+                        source["content"] = f"Table data from {source.get('title', 'database')}"
+                    else:
+                        source["content"] = source.get("text", "No content available")
+                
+                if "chunk_index" not in source:
+                    source["chunk_index"] = i
+                
+                # Add routing information to each source
+                source["routing"] = {
+                    "service": service,
+                    "confidence": routing_info.get("confidence", 0),
+                    "reasoning": routing_info.get("reasoning", "No reasoning provided")
+                }
+                
+                # If TAG service was used, add SQL information to the source
+                if service == "tag" and response.get("sql"):
+                    source["sql_query"] = response.get("sql")
 
             # Prepare update data based on response
+            # Both RAG and TAG services provide an "answer" field
+            metadata = {"routing": routing_info}
+            if service == "tag" and response.get("sql"):
+                metadata["sql_query"] = response.get("sql")
+                if response.get("results"):
+                    metadata["sql_results"] = response.get("results")[:5]  # Limit to first 5 results to avoid huge payload
+            
+            # Check if sources have all required fields before calling set_processed
+            logger.info(f"Checking sources for required fields: {sources}")
+            
             await MESSAGE_REPO.set_processed(
                 message_id=assistant_message_id,
                 content=response.get("answer", ""),
                 content_type=MessageContentType.TEXT,
-                sources=response.get("sources", []),
+                sources=sources,
+                metadata=metadata,
                 db=db
             )
 
@@ -295,7 +385,7 @@ def initiate_rag_retrieval(
             logger.error(err_msg)
             await MESSAGE_REPO.set_failed(assistant_message_id, err_msg, db)
         except Exception as e:
-            logger.error(f"Failed to process RAG response for message {assistant_message_id}: {e}", exc_info=True)
+            logger.error(f"Failed to process response for message {assistant_message_id}: {e}", exc_info=True)
             await MESSAGE_REPO.set_failed(assistant_message_id, str(e), db)
             raise
 

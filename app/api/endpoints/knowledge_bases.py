@@ -41,7 +41,7 @@ def get_document_repository() -> DocumentRepository:
 
 def get_knowledge_base_service(
     repository: KnowledgeBaseRepository = Depends(get_knowledge_base_repository),
-    vector_store: VectorStore = Depends(get_vector_store),
+    vector_store: VectorStore = Depends(lambda: get_vector_store()),
     file_storage: LocalFileStorage = Depends(get_file_storage),
     db: Session = Depends(get_db)
 ) -> KnowledgeBaseService:
@@ -57,7 +57,7 @@ def get_knowledge_base_service(
 def get_document_service(
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     document_repository: DocumentRepository = Depends(get_document_repository),
-    vector_store: VectorStore = Depends(get_vector_store),
+    vector_store: VectorStore = Depends(lambda: get_vector_store()),
     file_storage: LocalFileStorage = Depends(get_file_storage),
     db: Session = Depends(get_db)
 ) -> DocumentService:

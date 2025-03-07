@@ -233,6 +233,7 @@ class PineconeRetriever(Retriever):
                     try:
                         # Get metadata safely
                         metadata = match.metadata or {}
+                        logger.info(f"Metadata: {metadata}")
                         
                         # Build chunk with required fields
                         chunk = {
@@ -252,6 +253,7 @@ class PineconeRetriever(Retriever):
                                 'path': metadata.get('path', '').split(',') if metadata.get('path') else []
                             }
                         }
+                        logger.info(f"Chunk: {chunk}")
                         
                         # Only skip if absolutely necessary
                         if not chunk['content']:

@@ -25,6 +25,7 @@ class DocumentType(str, enum.Enum):
     MARKDOWN = "text/markdown"
     MD = "text/markdown"
     TXT = "text/plain"
+    HTML = "text/html"
 
 class Document(BaseModel):
     """Document model"""

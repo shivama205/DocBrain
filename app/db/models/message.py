@@ -32,6 +32,7 @@ class Message(BaseModel):
     conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     sources = Column(JSON, nullable=True)
+    message_metadata = Column(JSON, nullable=True)  # For storing query routing info and other metadata
     status = Column(String, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

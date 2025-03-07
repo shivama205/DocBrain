@@ -54,8 +54,25 @@ class MessageRepository:
         return MessageResponse.model_validate(message_id) 
     
     @staticmethod
-    async def set_processed(message_id: str, content: str, content_type: MessageContentType, sources: List[dict], db: Session) -> Optional[MessageResponse]:
-        """Set message as processed"""
+    async def set_processed(
+        message_id: str, 
+        content: str, 
+        content_type: MessageContentType, 
+        sources: List[dict], 
+        db: Session,
+        metadata: Optional[dict] = None
+    ) -> Optional[MessageResponse]:
+        """
+        Set message as processed
+        
+        Args:
+            message_id: The ID of the message to update
+            content: The content of the message
+            content_type: The content type
+            sources: List of sources
+            db: Database session
+            metadata: Optional metadata to store with the message
+        """
         try:
             message = db.query(Message).filter(Message.id == message_id).first()
             if not message:
@@ -64,6 +81,12 @@ class MessageRepository:
             message.content_type = content_type
             message.sources = sources
             message.status = MessageStatus.PROCESSED
+            
+            # Add metadata if provided - store directly as a dictionary
+            # SQLAlchemy will handle the JSON serialization
+            if metadata:
+                message.message_metadata = metadata
+            
             db.commit()
             db.refresh(message)
             return MessageResponse.model_validate(message)

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Protocol, Union
 import numpy as np
 from pinecone import Pinecone
 from google import genai
@@ -7,21 +7,97 @@ from app.core.config import settings
 import logging
 import random
 from functools import lru_cache
+from abc import ABC, abstractmethod
+import threading
 
 logger = logging.getLogger(__name__)
 
-class VectorStore:
-    def __init__(self):
-        # Initialize Pinecone
+class VectorStore(ABC):
+    """Abstract base class for vector stores"""
+    
+    @abstractmethod
+    async def add_chunks(self, chunks: List[Dict[str, Any]], knowledge_base_id: str) -> None:
+        """Add document chunks to the vector store"""
+        pass
+    
+    @abstractmethod
+    async def delete_document_chunks(self, document_id: str, knowledge_base_id: str) -> None:
+        """Delete all chunks for a document from the vector store"""
+        pass
+    
+    @abstractmethod
+    async def search_similar(
+        self,
+        query: str,
+        knowledge_base_id: str,
+        limit: int = 5,
+        similarity_threshold: float = 0.3,
+        metadata_filter: Dict[str, Any] = None
+    ) -> List[Dict[str, Any]]:
+        """Search for similar chunks in the vector store"""
+        pass
+    
+    @abstractmethod
+    async def get_random_chunks(self, knowledge_base_id: str, limit: int = 5) -> List[Dict]:
+        """Get random chunks from a knowledge base"""
+        pass
+    
+    @abstractmethod
+    async def search_chunks(
+        self, 
+        query: str, 
+        knowledge_base_id: str, 
+        top_k: int = 5, 
+        metadata_filter: Optional[Dict] = None,
+        similarity_threshold: float = 0.3
+    ) -> List[Dict]:
+        """Search for chunks based on a query with metadata filtering"""
+        pass
+
+
+class PineconeVectorStore(VectorStore):
+    """Pinecone implementation of the VectorStore interface"""
+    
+    def __init__(self, index_name: str = "docbrain"):
+        """Initialize PineconeVectorStore with specific index name
+        
+        Args:
+            index_name: Name of the Pinecone index to use ('docbrain' or 'summary')
+        """
+        # Initialize Pinecone client
         self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-        self.index_name = settings.PINECONE_INDEX_NAME
-        self.index = self.pc.Index(self.index_name)
+        
+        # Set the index name
+        self.index_name = index_name
+            
+        # Get the index
+        try:
+            self.index = self.pc.Index(self.index_name)
+            logger.info(f"Initialized Pinecone index: {self.index_name}")
+        except Exception as e:
+            logger.error(f"Failed to initialize Pinecone index {self.index_name}: {e}")
+            raise
         
         # Initialize Gemini for embeddings
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
         
         # Vector dimension from Gemini text-embedding-004
         self.dimension = 768
+        
+        # Connection status
+        self._connected = True
+
+    def cleanup(self):
+        """Cleanup resources when this instance is no longer needed"""
+        # Pinecone client handles connection pooling, but we could add
+        # cleanup logic here if needed in the future
+        self._connected = False
+        logger.info(f"Cleaned up PineconeVectorStore for index {self.index_name}")
+        
+    def __del__(self):
+        """Destructor to ensure resources are cleaned up"""
+        if hasattr(self, '_connected') and self._connected:
+            self.cleanup()
 
     async def add_chunks(self, chunks: List[Dict[str, Any]], knowledge_base_id: str) -> None:
         """Add document chunks to Pinecone
@@ -33,7 +109,7 @@ class VectorStore:
             knowledge_base_id: ID of the knowledge base (used as namespace)
         """
         try:
-            logger.info(f"Starting to process {len(chunks)} chunks for knowledge base {knowledge_base_id}")
+            logger.info(f"Starting to process {len(chunks)} chunks for knowledge base {knowledge_base_id} in index {self.index_name}")
             
             # Generate embeddings for chunks
             vectors = []
@@ -101,7 +177,7 @@ class VectorStore:
             knowledge_base_id: ID of the knowledge base (used as namespace)
         """
         try:
-            logger.info(f"Attempting to delete chunks for document {document_id} in knowledge base {knowledge_base_id}")
+            logger.info(f"Attempting to delete chunks for document {document_id} in knowledge base {knowledge_base_id} in index {self.index_name}")
             
             # First, fetch all vector IDs for this document by querying with the document_id
             try:
@@ -168,6 +244,7 @@ class VectorStore:
             logger.info("=== Vector Search Details ===")
             logger.info(f"Query: {query}")
             logger.info(f"Knowledge Base: {knowledge_base_id}")
+            logger.info(f"Index: {self.index_name}")
             logger.info(f"Limit: {limit}, Threshold: {similarity_threshold}")
             
             # Get query embedding
@@ -313,7 +390,7 @@ class VectorStore:
             List of random chunks with content and metadata
         """
         try:
-            logger.info(f"Fetching random chunks from knowledge base {knowledge_base_id}")
+            logger.info(f"Fetching random chunks from knowledge base {knowledge_base_id} in index {self.index_name}")
             
             # Fetch all document IDs in this knowledge base
             # We need to use a dummy query to get all vectors in the namespace
@@ -508,8 +585,121 @@ class VectorStore:
             logger.error(f"Error searching chunks: {e}", exc_info=True)
             return []
 
-# Create a singleton instance of VectorStore
-@lru_cache()
-def get_vector_store() -> VectorStore:
-    """Get a singleton instance of VectorStore"""
-    return VectorStore() 
+
+class VectorStoreFactory:
+    """Factory class for creating VectorStore instances"""
+    
+    # Class-level registry to store instances
+    _instances = {}
+    # Lock for thread safety
+    _lock = threading.RLock()
+    
+    @classmethod
+    def create(cls, store_type: str = "pinecone", index_name: str = "docbrain") -> VectorStore:
+        """Create or retrieve a VectorStore instance
+        
+        Args:
+            store_type: Type of vector store to create ('pinecone', 'weaviate', 'chroma', etc.)
+            index_name: Name of the Pinecone index to use ('docbrain' or 'summary')
+            
+        Returns:
+            VectorStore: An instance of a VectorStore implementation
+        """
+        # Create a key for the instance registry
+        instance_key = f"{store_type}_{index_name}"
+        
+        # First check without lock for performance
+        if instance_key in cls._instances:
+            logger.debug(f"Returning existing {store_type} instance for index {index_name}")
+            return cls._instances[instance_key]
+        
+        # If not found, acquire lock and check again (double-checked locking pattern)
+        with cls._lock:
+            # Check again with lock held
+            if instance_key in cls._instances:
+                logger.debug(f"Returning existing {store_type} instance for index {index_name} (after lock)")
+                return cls._instances[instance_key]
+                
+            # Create a new instance
+            logger.info(f"Creating new {store_type} instance for index {index_name}")
+            if store_type == "pinecone":
+                instance = PineconeVectorStore(index_name=index_name)
+                # Store in registry
+                cls._instances[instance_key] = instance
+                return instance
+            else:
+                # For future implementations like weaviate or chroma
+                # We can add them here when needed
+                raise ValueError(f"Unsupported vector store type: {store_type}")
+            
+    @classmethod
+    def cleanup(cls, store_type: str = None, index_name: str = None):
+        """
+        Clean up vector store instances
+        
+        Args:
+            store_type: Optional type to clean up only instances of this type
+            index_name: Optional index name to clean up only instances for this index
+        """
+        with cls._lock:
+            if store_type and index_name:
+                # Clean up specific instance
+                instance_key = f"{store_type}_{index_name}"
+                if instance_key in cls._instances:
+                    instance = cls._instances[instance_key]
+                    if hasattr(instance, 'cleanup'):
+                        instance.cleanup()
+                    del cls._instances[instance_key]
+                    logger.info(f"Cleaned up {store_type} instance for index {index_name}")
+            elif store_type:
+                # Clean up all instances of this type
+                keys_to_remove = []
+                for key, instance in cls._instances.items():
+                    if key.startswith(f"{store_type}_"):
+                        if hasattr(instance, 'cleanup'):
+                            instance.cleanup()
+                        keys_to_remove.append(key)
+                
+                for key in keys_to_remove:
+                    del cls._instances[key]
+                
+                logger.info(f"Cleaned up all {store_type} instances")
+            elif index_name:
+                # Clean up all instances with this index name
+                keys_to_remove = []
+                for key, instance in cls._instances.items():
+                    if key.endswith(f"_{index_name}"):
+                        if hasattr(instance, 'cleanup'):
+                            instance.cleanup()
+                        keys_to_remove.append(key)
+                
+                for key in keys_to_remove:
+                    del cls._instances[key]
+                
+                logger.info(f"Cleaned up all instances for index {index_name}")
+            else:
+                # Clean up all instances
+                for instance in cls._instances.values():
+                    if hasattr(instance, 'cleanup'):
+                        instance.cleanup()
+                
+                cls._instances.clear()
+                logger.info("Cleaned up all vector store instances")
+
+
+# Helper functions for working with vector stores
+def get_vector_store(store_type: str = "pinecone", index_name: str = "docbrain") -> VectorStore:
+    """Get a vector store instance - uses singleton pattern
+    
+    This function returns a singleton instance for each unique combination of
+    store_type and index_name. Subsequent calls with the same parameters will
+    return the same instance.
+    
+    Args:
+        store_type: Type of vector store ('pinecone', 'weaviate', 'chroma', etc.)
+        index_name: Name of the Pinecone index to use ('docbrain' or 'summary')
+        
+    Returns:
+        VectorStore instance (singleton per unique combination of parameters)
+    """
+    return VectorStoreFactory.create(store_type=store_type, index_name=index_name) 

@@ -7,6 +7,8 @@ from app.services.rag.reranker.reranker_factory import RerankerFactory
 from app.services.rag.retriever.retriever_factory import RetrieverFactory
 from app.services.rag.llm import GeminiLLM
 from app.core.config import settings
+from app.services.rag.vector_store import get_vector_store
+from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +111,31 @@ class RAGService:
             logger.error(f"Failed to delete document: {e}", exc_info=True)
             return False
     
+    async def retrieve_from_storage(
+        self,
+        knowledge_base_id: str,
+        query: str,
+        top_k: int = 5,
+        similarity_threshold: float = 0.3,
+    ) -> Dict[str, Any]:
+        """
+        Retrieve relevant chunks from storage.
+        """
+        try:
+            logger.info(f"Retrieving from storage for query: '{query}'")
+            
+            # Create retriever using the provided knowledge_base_id
+            retriever = RetrieverFactory.create_retriever(knowledge_base_id)
+
+            # TODO: Add Text 2 SQL to convert query to SQL and remove chunks 
+            # Retrieve chunks
+            chunks = await retriever.search(query, top_k, similarity_threshold)
+            return chunks
+        except Exception as e:
+            logger.error(f"Failed to retrieve from storage: {e}", exc_info=True)
+            raise
+            
+
     async def retrieve(
         self,
         knowledge_base_id: str,
@@ -116,7 +143,6 @@ class RAGService:
         top_k: int = 5,
         similarity_threshold: float = 0.3,
         metadata_filter: Optional[Dict[str, Any]] = None,
-        rerank: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Retrieve relevant chunks and generate an answer.
@@ -127,7 +153,6 @@ class RAGService:
             top_k: Number of chunks to retrieve
             similarity_threshold: Minimum similarity score for chunks
             metadata_filter: Optional filter for retrieval
-            rerank: Whether to use reranking (overrides instance setting)
             
         Returns:
             Dictionary containing:
@@ -148,7 +173,7 @@ class RAGService:
                 metadata_filter=metadata_filter
             )
             logger.info(f"Retrieved {len(chunks)} chunks")
-            
+
             # True if number of chunks is higher than top_k
             should_rerank = True if len(chunks) > top_k else False
 
@@ -195,3 +220,66 @@ class RAGService:
                 "answer": f"I encountered an error while processing your query: {str(e)}",
                 "sources": []
             } 
+
+    async def add_document_summary(
+        self,
+        document_id: str,
+        knowledge_base_id: str,
+        document_title: str,
+        document_type: str,
+        summary: str
+    ) -> bool:
+        """
+        Add a document summary to the summary index for semantic routing.
+        
+        Args:
+            document_id: ID of the document
+            knowledge_base_id: ID of the knowledge base containing the document
+            document_title: Title of the document
+            document_type: Type of the document
+            summary: Generated summary of the document
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Adding summary for document {document_id} to summary index")
+            
+            # Get the summary vector store
+            summary_vector_store = get_vector_store(
+                store_type="pinecone", 
+                index_name=settings.PINECONE_SUMMARY_INDEX_NAME
+            )
+            
+            # Create a single chunk with the summary
+            chunk = {
+                "content": summary,
+                "metadata": {
+                    "document_id": document_id,
+                    "knowledge_base_id": knowledge_base_id,
+                    "document_title": document_title,
+                    "document_type": document_type,
+                    "chunk_index": 0,
+                    "chunk_size": len(summary),
+                    "nearest_header": "Document Summary",
+                    "section_path": ["Document Summary"],
+                    "is_summary": True
+                }
+            }
+            
+            # Add the summary to the summary index
+            # We use "summaries" as a special namespace for all document summaries
+            await summary_vector_store.add_chunks(chunks=[chunk], knowledge_base_id=knowledge_base_id)
+            
+            logger.info(f"Successfully added summary for document {document_id} to summary index")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to add document summary to index: {e}", exc_info=True)
+            return False 
+
+# Create a singleton instance of RAGService
+@lru_cache()
+def get_rag_service() -> RAGService:
+    """Get a singleton instance of RAGService"""
+    return RAGService() 

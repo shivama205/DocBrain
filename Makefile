@@ -19,7 +19,7 @@ run-dev:
 	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 worker:
-	celery -A app.worker.celery worker --loglevel=info
+	sh ./restart_worker.sh
 
 test:
 	pytest

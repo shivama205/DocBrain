@@ -1,7 +1,8 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from enum import Enum
+import json
 
 from app.db.models.message import MessageContentType, MessageKind, MessageStatus
 
@@ -35,9 +36,21 @@ class MessageResponse(MessageBase):
     conversation_id: str = Field(..., description="ID of the conversation this message belongs to")
     knowledge_base_id: str = Field(..., description="ID of the knowledge base this message belongs to")
     sources: Optional[List[MessageSource]] = Field(None, description="Source documents used for assistant's response")
+    message_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata including routing information")
     status: MessageStatus = Field(..., description="Status of the message (RECEIVED/PROCESSING/SENT/FAILED)")
     created_at: datetime = Field(..., description="When the message was created")
     updated_at: datetime = Field(..., description="When the message was last updated")
+
+    @model_validator(mode='after')
+    def parse_message_metadata(self) -> 'MessageResponse':
+        """Parse message_metadata if it's a string"""
+        if self.message_metadata and isinstance(self.message_metadata, str):
+            try:
+                self.message_metadata = json.loads(self.message_metadata)
+            except json.JSONDecodeError:
+                # If we can't parse it as JSON, set it to None
+                self.message_metadata = None
+        return self
 
     class Config:
         from_attributes = True

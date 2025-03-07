@@ -32,7 +32,7 @@ def get_document_repository() -> DocumentRepository:
 
 def get_knowledge_base_service(
     repository: KnowledgeBaseRepository = Depends(get_knowledge_base_repository),
-    vector_store: VectorStore = Depends(get_vector_store),
+    vector_store: VectorStore = Depends(lambda: get_vector_store()),
     file_storage: LocalFileStorage = Depends(get_file_storage),
     db: Session = Depends(get_db)
 ) -> KnowledgeBaseService:
@@ -48,7 +48,7 @@ def get_knowledge_base_service(
 def get_document_service(
     kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     document_repository: DocumentRepository = Depends(get_document_repository),
-    vector_store: VectorStore = Depends(get_vector_store),
+    vector_store: VectorStore = Depends(lambda: get_vector_store()),
     file_storage: LocalFileStorage = Depends(get_file_storage),
     db: Session = Depends(get_db)
 ) -> DocumentService:
@@ -61,24 +61,6 @@ def get_document_service(
         celery_app=celery_app,
         db=db
     )
-
-# @router.post("/upload", response_model=DocumentResponse)
-# async def upload_document(
-#     file: UploadFile = File(...),
-#     knowledge_base_id: str = Form(...),
-#     current_user: UserResponse = Depends(get_current_user),
-#     doc_service: DocumentService = Depends(get_document_service)
-# ):
-#     """
-#     Upload a document to a knowledge base.
-    
-#     This endpoint:
-#     1. Reads and validates the uploaded file
-#     2. Creates a document entry in the database
-#     3. Triggers a Celery task to process the document
-#     """
-#     payload = DocumentUpload(title=file.filename, content=file.file.read(), knowledge_base_id=knowledge_base_id, content_type=file.content_type)
-#     return await doc_service.create_document(knowledge_base_id, payload, current_user)
 
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, Body, Depends, Path
 from functools import lru_cache
 from sqlalchemy.orm import Session
@@ -10,6 +10,7 @@ from app.services.message_service import MessageService
 from app.repositories.message_repository import MessageRepository
 from app.api.endpoints.conversations import get_conversation_service
 from app.db.database import get_db
+from app.services.query_router import get_query_router
 
 router = APIRouter()
 
@@ -61,4 +62,4 @@ async def get_message(
     message_service: MessageService = Depends(get_message_service)
 ):
     """Get a message by ID"""
-    return await message_service.get_message(conversation_id, message_id, current_user) 
+    return await message_service.get_message(conversation_id, message_id, current_user)
