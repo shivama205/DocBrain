@@ -23,7 +23,7 @@ A privacy-focused, modular Retrieval-Augmented Generation framework for enterpri
 | **Secure Ingestion** | Process documents without external API dependencies                        |
 | **Vector Storage** | Currently using Pinecone for development, with plans to support custom vector DBs in the future |
 | **Privacy First**    | No data leaves your environment - self-contained processing pipeline       |
-| **Google Gemini Integration** | Leveraging Google's Gemini model for generating responses, with plans to support multiple LLM providers |
+| **Multiple LLM Provider Support** | Factory pattern implementation supporting Google Gemini, OpenAI, and other providers |
 | **Query Router** | Intelligent routing between different retrieval methods based on query type |
 | **Table Augmented Generation (TAG)** | Enhanced reasoning over tabular data (CSV, Excel) with automatic SQL generation |
 

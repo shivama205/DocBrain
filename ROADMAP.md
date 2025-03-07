@@ -65,21 +65,22 @@ Implement intelligent routing between different retrieval methods based on query
 
 ### 4. Multiple LLM Provider Support
 
-**Priority: High**
+**Priority: High** | **Status: Completed**
 
 Expand beyond Google Gemini to support multiple LLM providers.
 
 **Target Implementations:**
-- OpenAI (GPT-3.5, GPT-4)
-- Anthropic (Claude)
-- HuggingFace models
+- ✅ OpenAI (GPT-3.5, GPT-4)
+- ✅ Anthropic (Claude)
+- ✅ HuggingFace models
 - Mistral AI
 
-**Implementation approach:**
-- Create provider-agnostic interface for LLM interactions
-- Implement provider-specific adapters
-- Add configuration for model selection and parameters
-- Support for API key management and usage tracking
+**Implementation Details:**
+- ✅ Created LLM Factory pattern for provider-agnostic interface
+- ✅ Implemented provider-specific adapters for major LLM providers
+- ✅ Added configuration for model selection and parameters
+- ✅ Added support for API key management
+- Future work: Implement usage tracking and cost optimization
 
 ### 5. Multiple Vector Database Support
 
@@ -279,4 +280,18 @@ We welcome community input on this roadmap. If you have suggestions for features
 - **v1.3** - Updated to mark completion of TAG and Query Router features (May 2024)
 - **v1.2** - Updated priorities based on implementation focus (May 2024)
 - **v1.1** - Updated with comprehensive feature list (May 2024)
-- **v1.0** - Initial roadmap created (May 2024) 
+- **v1.0** - Initial roadmap created (May 2024)
+
+## Roadmap
+
+DocBrain has an ambitious development roadmap focused on enhancing capabilities while maintaining our commitment to privacy and security.
+
+We've recently completed implementation of:
+- ✅ **Table Augmented Generation (TAG)** - SQL-based tabular data querying
+- ✅ **Query Router** - Intelligent routing between retrieval methods
+- ✅ **Multiple LLM Provider Support** - Factory pattern for integrating various LLM providers
+
+Some planned future features include:
+- **Multiple Vector Database Support** - Alternatives to Pinecone
+- **RAG Evaluation Framework** - Integration with RAGAS for measuring performance
+- **Access Control** - Document-level permission system 
