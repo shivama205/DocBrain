@@ -1,16 +1,34 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging
 from app.db.models.knowledge_base import DocumentType
 from app.services.rag.chunker.chunker_factory import ChunkerFactory
 from app.services.rag.ingestor.ingestor_factory import IngestorFactory
 from app.services.rag.reranker.reranker_factory import RerankerFactory
 from app.services.rag.retriever.retriever_factory import RetrieverFactory
-from app.services.rag.llm import GeminiLLM
+from app.services.llm.factory import LLMFactory, Message, Role, CompletionOptions
+from app.core.prompts import get_prompt, register_prompt
 from app.core.config import settings
 from app.services.rag.vector_store import get_vector_store
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
+
+# Register rag_service prompts
+register_prompt("rag_service", "generate_answer", """
+Based on the given sources, please answer the question.
+If you cannot find a relevant answer in the sources, please say so.
+
+Sources:
+{{ context }}
+
+Question: {{ query }}
+
+Please provide a clear, direct answer that:
+1. Directly addresses the question
+2. Uses [Source X] notation to cite the sources
+3. Only uses information from the provided sources
+4. Maintains a professional and helpful tone
+""")
 
 class RAGService:
     """
@@ -18,12 +36,22 @@ class RAGService:
     chunking, retrieval, reranking, and answer generation.
     """
     
-    def __init__(self, use_reranker: bool = True, reranker_model: str = "Cohere/rerank-v3.5", llm_model: str = "gemini-2.0-flash"):
-        """Initialize the RAG service. All methods now receive knowledge_base_id as a parameter where needed."""
+    def __init__(self, use_reranker: bool = True, reranker_model: str = "Cohere/rerank-v3.5", llm_model: str = "gemini-2.0-flash", llm_provider: Optional[str] = None):
+        """
+        Initialize the RAG service.
+        
+        Args:
+            use_reranker: Whether to use reranking
+            reranker_model: Model to use for reranking
+            llm_model: Model to use for answer generation
+            llm_provider: Provider to use for answer generation (defaults to settings.LLM_PROVIDER)
+        """
         try:
-            logger.info(f"Initializing LLM with model {llm_model} for RAG service")
-            self.llm = GeminiLLM(llm_model)
-
+            logger.info(f"Initializing RAG service with model {llm_model} from provider {llm_provider or settings.LLM_PROVIDER}")
+            self.llm_model = llm_model
+            self.llm_provider = llm_provider
+            self.use_reranker = use_reranker
+            self.reranker_model = reranker_model
             logger.info("RAG service initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize RAG service: {e}", exc_info=True)
@@ -187,10 +215,10 @@ class RAGService:
                 # Limit to top_k if not reranking
                 chunks = chunks[:top_k]
             
-            # Generate answer
+            # Generate answer using the LLMFactory directly
             if chunks:
                 logger.info("Generating answer")
-                answer = await self.llm.generate_answer(query, chunks)
+                answer = await self._generate_answer(query, chunks)
             else:
                 logger.warning("No chunks found, returning empty answer")
                 answer = "I couldn't find any relevant information to answer your question."
@@ -219,7 +247,88 @@ class RAGService:
             return {
                 "answer": f"I encountered an error while processing your query: {str(e)}",
                 "sources": []
-            } 
+            }
+    
+    async def _generate_answer(self, query: str, context: List[Dict[str, Any]]) -> str:
+        """
+        Generate an answer using the LLM Factory.
+        
+        Args:
+            query: The user's query
+            context: List of context chunks to use for answering
+            
+        Returns:
+            Generated answer as a string
+        """
+        try:
+            logger.info(f"Generating answer for query: {query}")
+            logger.info(f"Using {len(context)} context chunks")
+            
+            # Format context chunks
+            formatted_context = self._format_context(context)
+            
+            # Get the prompt from the registry
+            prompt = get_prompt("rag_service", "generate_answer", 
+                               query=query, 
+                               context=formatted_context)
+            
+            # Create the message for the LLM
+            messages = [
+                Message(role=Role.USER, content=prompt)
+            ]
+            
+            # Set completion options
+            options = CompletionOptions(
+                temperature=0.3,  # Low temperature for more factual answers
+                max_tokens=1000
+            )
+            
+            # Generate response using LLM Factory
+            response = await LLMFactory.complete(
+                messages=messages,
+                provider=self.llm_provider,
+                model=self.llm_model,
+                options=options
+            )
+            
+            logger.info(f"Generated answer with {len(response.content)} characters")
+            
+            return response.content
+            
+        except Exception as e:
+            logger.error(f"Failed to generate answer: {e}", exc_info=True)
+            return f"I apologize, but I encountered an error while generating an answer: {str(e)}"
+    
+    def _format_context(self, context: List[Dict[str, Any]]) -> str:
+        """
+        Format context chunks for the prompt.
+        
+        Args:
+            context: List of context chunks
+            
+        Returns:
+            Formatted context as a string
+        """
+        formatted_chunks = []
+        
+        for i, chunk in enumerate(context, 1):
+            # Extract metadata
+            document_id = chunk.get('document_id', 'unknown')
+            title = chunk.get('title', 'Untitled')
+            content = chunk.get('content', '')
+            score = chunk.get('score', 0.0)
+            
+            # Format chunk
+            formatted_chunk = (
+                f"[Source {i}]\n"
+                f"Document: {title} (ID: {document_id})\n"
+                f"Relevance: {score:.3f}\n"
+                f"Content: {content}\n"
+            )
+            
+            formatted_chunks.append(formatted_chunk)
+        
+        return "\n\n".join(formatted_chunks)
 
     async def add_document_summary(
         self,
@@ -280,6 +389,22 @@ class RAGService:
 
 # Create a singleton instance of RAGService
 @lru_cache()
-def get_rag_service() -> RAGService:
-    """Get a singleton instance of RAGService"""
-    return RAGService() 
+def get_rag_service(
+    llm_model: Optional[str] = None, 
+    llm_provider: Optional[str] = None
+) -> RAGService:
+    """
+    Get a singleton instance of RAGService.
+    
+    Args:
+        llm_model: Model to use for answer generation (defaults to settings.DEFAULT_LLM_MODEL or provider default)
+        llm_provider: Provider to use for answer generation (defaults to settings.LLM_PROVIDER)
+        
+    Returns:
+        RAGService instance
+    """
+    model = llm_model or settings.DEFAULT_LLM_MODEL or "gemini-2.0-flash"
+    provider = llm_provider or settings.LLM_PROVIDER
+    
+    logger.info(f"Creating RAGService with model={model}, provider={provider}")
+    return RAGService(llm_model=model, llm_provider=provider) 

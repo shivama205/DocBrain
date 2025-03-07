@@ -2,10 +2,9 @@ from typing import List, Dict, Any, Optional
 import logging
 import random
 from pinecone import Pinecone
-from google import genai
-from google.genai.types import ContentEmbedding
 from app.core.config import settings
 from app.services.rag.retriever.retriever import Retriever
+from app.services.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +28,8 @@ class PineconeRetriever(Retriever):
         self.index_name = settings.PINECONE_INDEX_NAME
         self.index = self.pc.Index(self.index_name)
         
-        # Initialize Gemini for embeddings
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        
-        # Vector dimension from Gemini text-embedding-004
-        self.dimension = 768
+        # Vector dimension for embeddings
+        self.dimension = 768  # Dimension for text-embedding-004
     
     async def add_chunks(self, chunks: List[Dict[str, Any]]) -> None:
         """
@@ -52,8 +48,9 @@ class PineconeRetriever(Retriever):
             for i, chunk in enumerate(chunks):
                 # Get embedding
                 document_id = str(chunk['metadata']['document_id'])
-                logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)} (doc_id: {document_id})")
+                logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)} (doc_id: {document_id}) using LLM Factory")
                 embedding = await self._get_embedding(chunk['content'])
+                logger.info(f"Generated embedding with dimension {len(embedding)}")
                 
                 # Store content and metadata separately for Pinecone
                 metadata = {
@@ -126,7 +123,7 @@ class PineconeRetriever(Retriever):
                     
                     # Query to get all vectors for this document
                     # We need to use a dummy vector for the query
-                    dummy_vector = [0.0] * 768  # Dimension for Gemini text-embedding-004
+                    dummy_vector = [0.0] * 768  # Dimension for text-embedding-004
                     
                     # Query with a high top_k to get all vectors for this document
                     results = self.index.query(
@@ -188,7 +185,7 @@ class PineconeRetriever(Retriever):
             logger.info(f"Limit: {top_k}, Threshold: {similarity_threshold}")
             
             # Get query embedding
-            logger.info("Generating query embedding")
+            logger.info("Generating query embedding using LLM Factory")
             query_vector = await self._get_embedding(query)
             logger.info(f"Generated embedding with dimension {len(query_vector)}")
             
@@ -363,7 +360,7 @@ class PineconeRetriever(Retriever):
     
     async def _get_embedding(self, text: str) -> List[float]:
         """
-        Get embedding for text using Gemini.
+        Get embedding for text using the LLM Factory.
         
         Args:
             text: The text to embed
@@ -372,13 +369,13 @@ class PineconeRetriever(Retriever):
             List of floats representing the embedding
         """
         try:
-            result: ContentEmbedding = self.client.models.embed_content(
-                model="text-embedding-004",
-                contents=text
-            )
+            logger.info(f"Generating embedding using LLM Factory with model: {settings.EMBEDDING_MODEL}")
             
-            # Get embedding values directly from the ContentEmbedding object
-            embedding = result.embeddings[0].values
+            # Use the LLM Factory for text embeddings
+            embedding = await LLMFactory.embed_text(
+                text=text,
+                model=settings.EMBEDDING_MODEL
+            )
             
             return embedding
             

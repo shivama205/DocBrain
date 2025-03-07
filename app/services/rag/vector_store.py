@@ -1,14 +1,11 @@
-from typing import List, Dict, Any, Optional, Protocol, Union
-import numpy as np
+from typing import List, Dict, Any, Optional
 from pinecone import Pinecone
-from google import genai
-from google.genai.types import ContentEmbedding
 from app.core.config import settings
 import logging
 import random
-from functools import lru_cache
 from abc import ABC, abstractmethod
 import threading
+from app.services.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -78,10 +75,7 @@ class PineconeVectorStore(VectorStore):
             logger.error(f"Failed to initialize Pinecone index {self.index_name}: {e}")
             raise
         
-        # Initialize Gemini for embeddings
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        
-        # Vector dimension from Gemini text-embedding-004
+        # Vector dimension from text-embedding-004
         self.dimension = 768
         
         # Connection status
@@ -116,8 +110,9 @@ class PineconeVectorStore(VectorStore):
             for i, chunk in enumerate(chunks):
                 # Get embedding
                 document_id = str(chunk['metadata']['document_id'])
-                logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)} (doc_id: {document_id})")
+                logger.info(f"Generating embedding for chunk {i+1}/{len(chunks)} (doc_id: {document_id}) using LLM Factory")
                 embedding = await self._get_embedding(chunk['content'])
+                logger.info(f"Generated embedding with dimension {len(embedding)}")
                 
                 # Store content and metadata separately for Pinecone
                 metadata = {
@@ -247,8 +242,8 @@ class PineconeVectorStore(VectorStore):
             logger.info(f"Index: {self.index_name}")
             logger.info(f"Limit: {limit}, Threshold: {similarity_threshold}")
             
-            # Get query embedding
-            logger.info("Generating query embedding")
+            # Get query embedding using LLM Factory
+            logger.info("Generating query embedding using LLM Factory")
             query_vector = await self._get_embedding(query)
             logger.info(f"Generated embedding with dimension {len(query_vector)}")
             
@@ -357,15 +352,21 @@ class PineconeVectorStore(VectorStore):
             raise
     
     async def _get_embedding(self, text: str) -> List[float]:
-        """Get embedding for text using Gemini"""
-        try:
-            result: ContentEmbedding = self.client.models.embed_content(
-                model="text-embedding-004",
-                contents=text
-            )
+        """
+        Get embedding for text using the centralized LLM Factory.
+        
+        Args:
+            text: The text to embed
             
-            # Get embedding values directly from the ContentEmbedding object
-            embedding = result.embeddings[0].values
+        Returns:
+            Embedding as a list of floats
+        """
+        try:
+            # Use the LLM Factory for text embeddings (using model from settings)
+            embedding = await LLMFactory.embed_text(
+                text=text,
+                model=settings.EMBEDDING_MODEL  # Use the model from settings
+            )
             
             # Verify dimension
             if len(embedding) != self.dimension:
@@ -375,7 +376,7 @@ class PineconeVectorStore(VectorStore):
             return embedding
             
         except Exception as e:
-            logger.error(f"Failed to get embedding from Gemini: {e}", exc_info=True)
+            logger.error(f"Failed to get embedding: {e}", exc_info=True)
             raise
 
     async def get_random_chunks(self, knowledge_base_id: str, limit: int = 5) -> List[Dict]:
@@ -513,8 +514,10 @@ class PineconeVectorStore(VectorStore):
             List of chunks with content and metadata
         """
         try:
-            # Get embedding for the query
+            # Get embedding for the query using LLM Factory
+            logger.info(f"Generating embedding for query using LLM Factory: '{query[:50]}...' (truncated)")
             embedding = await self._get_embedding(query)
+            logger.info(f"Generated embedding with dimension {len(embedding)}")
             
             # Create filter (no need to include knowledge_base_id as it's now a namespace)
             filter = {}

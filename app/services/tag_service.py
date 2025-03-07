@@ -4,15 +4,52 @@ import json
 from app.core.config import settings
 from app.db.database import get_db
 from functools import lru_cache
-import google.generativeai as genai
 import re
 from app.db.models.knowledge_base import DocumentType
 from app.db.storage import get_storage_db
 from app.repositories.storage_repository import StorageRepository
 from app.db.models.knowledge_base import Document
+from app.services.llm.factory import LLMFactory, Message, Role, CompletionOptions
+from app.core.prompts import get_prompt, register_prompt
 
 
 logger = logging.getLogger(__name__)
+
+# Register prompts used by the TAG service
+register_prompt("tag_service", "generate_sql", """
+You are an AI assistant that converts natural language questions into SQL queries.
+
+I have the following database tables:
+{{ schema_text }}
+
+Given this schema, please generate a SQL query that answers the following question:
+"{{ query }}"
+
+Return ONLY a valid SQL query without any explanations or markdown formatting.
+Make sure the query is compatible with common SQL dialects.
+Do not use features specific to one SQL dialect unless necessary.
+""")
+
+register_prompt("tag_service", "generate_answer", """
+You are an AI assistant that explains SQL query results.
+
+Original question: "{{ query }}"
+
+SQL query executed:
+```sql
+{{ sql }}
+```
+
+Query results:
+{{ results }}
+
+Please provide a clear, concise answer to the original question based on these results.
+Your answer should:
+1. Directly address the user's question
+2. Summarize the key findings from the data
+3. Be easy to understand for someone without technical SQL knowledge
+4. Include specific numbers/values from the results when relevant
+""")
 
 class TagService:
     """
@@ -24,8 +61,6 @@ class TagService:
     def __init__(self):
         """Initialize the Tag Service"""
         logger.info("Initializing TagService")
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.0-flash')
     
     async def retrieve(
         self,
@@ -249,7 +284,7 @@ class TagService:
         
         Args:
             query: The natural language query
-            table_schemas: Dictionary containing table schemas with sample data
+            table_schemas: Dictionary of table schemas
             
         Returns:
             Generated SQL query as a string
@@ -276,61 +311,40 @@ class TagService:
                 
                 schema_text += "\n"
             
-            # Construct a prompt for the LLM
-            prompt = f"""
-            You are a SQL expert. Given the following database schema with sample data:
+            # Get the prompt from the registry
+            prompt = get_prompt("tag_service", "generate_sql", 
+                                query=query, 
+                                schema_text=schema_text)
             
-            {schema_text}
+            # Create a message for the LLM
+            messages = [
+                Message(role=Role.USER, content=prompt)
+            ]
             
-            Generate a SQL query for the following natural language question:
-            "{query}"
+            # Set completion options
+            options = CompletionOptions(
+                temperature=0.2,  # Lower temperature for more deterministic SQL generation
+                max_tokens=1000
+            )
             
-            Rules:
-            1. Only use tables and columns that exist in the schema
-            2. For safety, do not use any SQL commands that modify data (INSERT, UPDATE, DELETE, etc.)
-            3. Return only the SQL query inside a markdown code block with sql syntax highlighting
-            4. Use proper SQL syntax for JOINs when querying across multiple tables
-            5. Use appropriate WHERE clauses to filter data according to the question
-            6. If the question involves aggregation, use GROUP BY clauses
-            7. Base your column selection on the information needed to answer the question
-            8. Examine the sample data to understand the structure and content of the database
-            9. Do not include explanations before or after the SQL code block
-            """
+            # Generate SQL using LLM Factory
+            response = await LLMFactory.complete(
+                messages=messages,
+                options=options
+            )
             
-            # Call the LLM to generate SQL
-            response = self.model.generate_content(prompt)
-            response_text = response.text.strip()
+            # Extract SQL from response
+            sql_query = response.content.strip()
             
-            # Extract SQL from markdown code blocks if present
-            # Try to extract SQL from code blocks
-            sql_pattern = r"```sql\s*([\s\S]*?)\s*```"
-            matches = re.search(sql_pattern, response_text, re.IGNORECASE)
+            # Remove any markdown code block formatting if present
+            sql_query = re.sub(r'```sql\s*', '', sql_query)
+            sql_query = re.sub(r'```', '', sql_query)
             
-            if matches:
-                # Extract just the SQL from within the code block
-                sql_query = matches.group(1).strip()
-                logger.info(f"Extracted SQL from code block: {sql_query}")
-            else:
-                # If no code block, check if it's just SQL without code blocks
-                # Look for SELECT statement
-                select_pattern = r"SELECT\s+[\s\S]*"
-                select_matches = re.search(select_pattern, response_text, re.IGNORECASE)
-                
-                if select_matches:
-                    sql_query = select_matches.group(0).strip()
-                    logger.info(f"Extracted SQL without code block: {sql_query}")
-                else:
-                    # No SQL found, return empty string to trigger fallback
-                    logger.warning(f"No SQL found in response: {response_text}")
-                    return ""
-            
-            # Basic safety check - only allow SELECT statements
-            if not sql_query.strip().upper().startswith("SELECT"):
-                logger.warning(f"Generated query doesn't start with SELECT: {sql_query}")
-                return "SELECT 1 WHERE false; -- Invalid query detected"
+            # Log the generated SQL
+            logger.info(f"Generated SQL query: {sql_query}")
             
             return sql_query
-                
+        
         except Exception as e:
             logger.error(f"Error generating SQL: {e}", exc_info=True)
             return ""
@@ -412,66 +426,51 @@ class TagService:
     
     async def _generate_answer(self, query: str, sql: str, results: List[Dict[str, Any]]) -> str:
         """
-        Generate a natural language answer from SQL results using an LLM.
+        Generate a natural language answer based on query, SQL, and results.
         
         Args:
             query: The original natural language query
-            sql: The SQL query executed
+            sql: The SQL query that was executed
             results: The results from the SQL query
             
         Returns:
-            Natural language answer
+            Natural language answer as a string
         """
         try:
-            # Format the results as JSON for the prompt
-            results_json = json.dumps(results[:10], indent=2)  # Limit to first 10 results
+            # Format results for the prompt
+            results_text = json.dumps(results[:10], indent=2)  # Limit to 10 rows for prompt size
             
-            # Construct a prompt for the LLM
-            prompt = f"""
-            Given the following:
+            # Get the prompt from the registry
+            prompt = get_prompt("tag_service", "generate_answer",
+                                query=query,
+                                sql=sql,
+                                results=results_text)
             
-            Original question: "{query}"
+            # Create a message for the LLM
+            messages = [
+                Message(role=Role.USER, content=prompt)
+            ]
             
-            SQL query used:
-            ```sql
-            {sql}
-            ```
+            # Set completion options
+            options = CompletionOptions(
+                temperature=0.5,  # Moderate temperature for natural language generation
+                max_tokens=1000
+            )
             
-            Query results:
-            ```json
-            {results_json}
-            ```
+            # Generate answer using LLM Factory
+            response = await LLMFactory.complete(
+                messages=messages,
+                options=options
+            )
             
-            Generate a clear, concise natural language answer to the original question based on these results.
-            Include key numbers and insights, but keep your answer direct and to the point.
-            If there are no results, explain that no data was found that matches the query.
-            If there are many results, summarize them appropriately.
-            DO NOT mention the SQL query itself in your answer.
-            """
+            return response.content.strip()
             
-            # Call the LLM to generate the answer
-            response = self.model.generate_content(prompt)
-            answer = response.text.strip()
-            
-            return answer
-                
         except Exception as e:
             logger.error(f"Error generating answer: {e}", exc_info=True)
-            
-            # Fallback to a basic answer
-            if len(results) == 0:
-                return "No results found for your query."
-            elif len(results) == 1:
-                return f"I found one record matching your query: {json.dumps(results[0], indent=2)}"
-            else:
-                return f"I found {len(results)} records matching your query."
+            return f"I found results, but couldn't generate a natural language answer due to an error: {str(e)}"
+
 
 @lru_cache()
 def get_tag_service() -> TagService:
-    """
-    Get a singleton instance of the TagService.
-    
-    Returns:
-        TagService instance
-    """
+    """Get a singleton instance of TagService"""
     return TagService() 

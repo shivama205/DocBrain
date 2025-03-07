@@ -162,10 +162,6 @@ class KnowledgeBaseService:
             for doc in documents:
                 # Delete document vectors
                 await self.vector_store.delete_document_chunks(doc.id, kb_id)
-                
-                # Clean up file if it exists
-                if doc.file_path:
-                    self.file_storage.cleanup_file(doc.file_path)
             
             # Delete the knowledge base (this will cascade delete documents)
             await self.repository.delete(kb_id, self.db)

@@ -200,27 +200,78 @@ class DocumentService:
         doc_id: str,
         current_user: UserResponse
     ) -> None:
-        """Delete a document from a knowledge base"""
+        """Delete a document and its vectors"""
         try:
             # Get document and check access
             doc = await self.get_document(doc_id, current_user)
             kb = await self.kb_service.get_knowledge_base(doc.knowledge_base_id, current_user)
             
+            # Only owner or admin can delete
             if current_user.role != UserRole.ADMIN and str(kb.user_id) != str(current_user.id):
                 raise HTTPException(status_code=403, detail="Not enough privileges")
             
             # Queue vector deletion task
             self.celery_app.send_task(
                 'app.worker.tasks.initiate_document_vector_deletion',
-                args=[doc.id]
+                args=[doc_id]
             )
             
             # Delete document
-            await self.document_repository.delete(doc_id, self.db)
-            logger.info(f"Document {doc_id} deleted by user {current_user.id}")
-            
+            success = await self.document_repository.delete(doc_id, self.db)
+            if not success:
+                raise HTTPException(status_code=404, detail="Document not found")
+                
+            logger.info(f"Document {doc_id} deleted")
+                
         except HTTPException:
             raise
         except Exception as e:
             logger.error(f"Failed to delete document {doc_id}: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+            
+    async def retry_failed_document(
+        self,
+        kb_id: str,
+        doc_id: str,
+        current_user: UserResponse
+    ) -> DocumentResponse:
+        """Retry processing a failed document"""
+        try:
+            # Get document and check access
+            doc = await self.get_document(doc_id, current_user)
+            
+            # Verify this document belongs to the specified knowledge base
+            if doc.knowledge_base_id != kb_id:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Document does not belong to the specified knowledge base"
+                )
+                
+            # Check if document is in a failed state
+            if doc.status != DocumentStatus.FAILED:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Only failed documents can be retried. Current status: {doc.status}"
+                )
+            
+            # Update document status back to pending
+            update_data = {
+                "status": DocumentStatus.PENDING,
+                "error_message": None
+            }
+            updated_doc = await self.document_repository.update(doc_id, update_data, self.db)
+            
+            # Queue document processing task
+            self.celery_app.send_task(
+                'app.worker.tasks.initiate_document_ingestion',
+                args=[doc_id]
+            )
+            
+            logger.info(f"Retrying processing for document {doc_id}")
+            return updated_doc
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to retry document processing for {doc_id}: {e}")
             raise HTTPException(status_code=500, detail=str(e)) 

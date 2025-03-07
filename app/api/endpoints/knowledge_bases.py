@@ -171,10 +171,26 @@ async def update_document(
 
 @router.delete("/{kb_id}/documents/{doc_id}")
 async def delete_document(
+    kb_id: str,
     doc_id: str,
     current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):
     """Delete a document"""
     await doc_service.delete_document(doc_id, current_user)
-    return JSONResponse(content={"message": "Document deleted successfully"}) 
+    return JSONResponse(content={"message": "Document deleted successfully"})
+
+@router.post("/{kb_id}/documents/{doc_id}/retry", response_model=DocumentResponse)
+async def retry_document(
+    kb_id: str = Path(..., description="Knowledge base ID"),
+    doc_id: str = Path(..., description="Document ID"),
+    current_user: UserResponse = Depends(get_current_user),
+    doc_service: DocumentService = Depends(get_document_service)
+):
+    """
+    Retry processing a failed document.
+    
+    This endpoint allows you to retry processing a document that failed during the initial ingestion.
+    It can only be used on documents with a FAILED status.
+    """
+    return await doc_service.retry_failed_document(kb_id, doc_id, current_user) 

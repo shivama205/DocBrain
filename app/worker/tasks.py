@@ -1,24 +1,37 @@
 from typing import Optional
+import logging
 from celery import shared_task
 import base64
-import logging
-from celery.exceptions import MaxRetriesExceededError
 import asyncio
-import google.generativeai as genai
-
 from sqlalchemy.orm import Session
+from celery.exceptions import MaxRetriesExceededError
+
 from app.db.database import get_db
-from app.db.models.knowledge_base import DocumentType
 from app.db.models.message import MessageContentType
-from app.repositories.document_repository import DocumentRepository
-from app.schemas.document import DocumentResponse
-from app.services.rag_service import RAGService, get_rag_service
-from app.repositories.message_repository import MessageRepository
-from app.core.config import settings
 from app.services.rag.vector_store import get_vector_store
 from app.services.query_router import get_query_router
+from app.core.config import settings
+from app.repositories.document_repository import DocumentRepository
+from app.repositories.message_repository import MessageRepository
+from app.schemas.document import DocumentResponse
+from app.services.rag_service import get_rag_service
+from app.services.llm.factory import LLMFactory, Message as LLMMessage, Role, CompletionOptions
+from app.core.prompts import get_prompt, register_prompt
 
 logger = logging.getLogger(__name__)
+
+# Register prompts
+register_prompt("worker", "document_summary", """Create a comprehensive summary of the following document. 
+The summary should capture the main topics, key points, and important details.
+It should be detailed enough to understand what information is contained in the document.
+Focus on factual information rather than opinions.
+
+Document Title: {{ title }}
+
+Document Content:
+{{ content }}
+
+Summary:""")
 
 DOCUMENT_REPO = DocumentRepository()
 MESSAGE_REPO = MessageRepository()
@@ -133,12 +146,8 @@ def initiate_document_ingestion(self, document_id: str) -> None:
         raise
 
 async def _generate_document_summary(content: bytes, title: str) -> str:
-    """Generate a summary of the document content using Gemini"""
+    """Generate a summary of the document content using the LLM factory"""
     try:
-        # Initialize Gemini
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        
         # Convert bytes to base64 string
         content_str = base64.b64encode(content).decode('utf-8')
 
@@ -146,31 +155,38 @@ async def _generate_document_summary(content: bytes, title: str) -> str:
         max_content_length = 10000  # Adjust based on model limits
         truncated_content = content_str[:max_content_length] + "..." if len(content_str) > max_content_length else content_str
         
-        prompt = f"""Create a comprehensive summary of the following document. 
-The summary should capture the main topics, key points, and important details.
-It should be detailed enough to understand what information is contained in the document.
-Focus on factual information rather than opinions.
-
-Document Title: {title}
-
-Document Content:
-{truncated_content}
-
-Summary:"""
-
-        response = model.generate_content(prompt)
-        summary = response.text.strip()
+        # Get the prompt from the registry
+        prompt = get_prompt("worker", "document_summary", 
+                           title=title, 
+                           content=truncated_content)
+        
+        # Create a message for the LLM
+        messages = [
+            LLMMessage(role=Role.USER, content=prompt)
+        ]
+        
+        # Set completion options
+        options = CompletionOptions(
+            temperature=0.3,  # Lower temperature for more factual summarization
+            max_tokens=1000
+        )
+        
+        # Generate summary using LLM Factory
+        response = await LLMFactory.complete(
+            messages=messages,
+            options=options
+        )
+        
+        summary = response.content.strip()
         
         # Ensure summary isn't too long for database storage
         max_summary_length = 5000  # Adjust based on database field size
         if len(summary) > max_summary_length:
-            summary = summary[:max_summary_length] + "..."
+            summary = summary[:max_summary_length - 3] + "..."
             
-        logger.info(f"Generated summary of length {len(summary)} characters")
         return summary
-        
     except Exception as e:
-        logger.error(f"Failed to generate document summary: {e}", exc_info=True)
+        logger.error(f"Error generating document summary: {e}", exc_info=True)
         return f"Summary generation failed: {str(e)}"
 
 @shared_task(

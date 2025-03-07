@@ -6,10 +6,39 @@ from app.services.rag_service import get_rag_service
 from app.services.tag_service import get_tag_service
 import logging
 from functools import lru_cache
-import google.generativeai as genai
 import json
 
+# Replace direct Gemini import with our LLM factory
+from app.services.llm.factory import LLMFactory, Message, Role, CompletionOptions
+from app.core.prompts import get_prompt, register_prompt
+
 logger = logging.getLogger(__name__)
+
+# Register query router prompts
+register_prompt("query_router", "analyze_query", """
+You are a query router for a hybrid retrieval system. Your job is to determine whether to route a user query to:
+
+1. TAG (Table Augmented Generation) - for queries that need access to structured data and would be best answered with SQL 
+2. RAG (Retrieval Augmented Generation) - for queries about unstructured text/content
+
+Routes to TAG when:
+- The query asks about statistical information (averages, counts, sums)
+- The query explicitly asks for database information
+- The query requests tabular data, spreadsheets, or data analysis
+- The query involves filtering, sorting, or comparing quantitative data
+- The query is clearly asking for information that would be stored in a structured format
+
+Routes to RAG when:
+- The query asks about concepts, explanations, or general information
+- The query is looking for specific text content
+- The query seems to be related to documents, reports, or unstructured content
+- The query is asking about procedures, policies, or general knowledge
+
+For the following query, determine the appropriate service (tag or rag), provide a confidence score (0-1),
+and explain your reasoning. Return your answer as a JSON object with the keys: service, confidence, reasoning.
+
+User Query: {{ query }}
+""")
 
 # Document types categorization
 UNSTRUCTURED_DOCUMENT_TYPES = {
@@ -132,7 +161,7 @@ class QueryRouter:
     async def analyze_query(self, query: str) -> Dict[str, Any]:
         """
         Analyze a query to determine which service to route it to.
-        Uses Gemini to analyze query semantics and determine if it requires
+        Uses LLM to analyze query semantics and determine if it requires
         structured data analysis (TAG) or unstructured text search (RAG).
         
         Args:
@@ -148,42 +177,28 @@ class QueryRouter:
         try:
             logger.info(f"Analyzing query for routing: '{query}'")
             
-            # Initialize Gemini
-            genai.configure(api_key=settings.GEMINI_API_KEY)
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            # Get the prompt from the registry
+            prompt = get_prompt("query_router", "analyze_query", query=query)
             
-            # Construct a prompt that guides the LLM to decide between TAG and RAG
-            prompt = """
-            You are a query router for a hybrid retrieval system. Your job is to determine whether to route a user query to:
+            # Create a message for the LLM
+            messages = [
+                Message(role=Role.USER, content=prompt)
+            ]
             
-            1. TAG (Table Augmented Generation) - for queries that need access to structured data and would be best answered with SQL 
-            2. RAG (Retrieval Augmented Generation) - for queries about unstructured text/content
+            # Set completion options
+            options = CompletionOptions(
+                temperature=0.3,  # Lower temperature for more deterministic results
+                max_tokens=500
+            )
             
-            Routes to TAG when:
-            - The query asks about statistical information (averages, counts, sums)
-            - The query explicitly asks for database information
-            - The query requests tabular data, spreadsheets, or data analysis
-            - The query involves filtering, sorting, or comparing quantitative data
-            - The query is clearly asking for information that would be stored in a structured format
-            
-            Routes to RAG when:
-            - The query asks about concepts, explanations, or general information
-            - The query is looking for specific text content
-            - The query seems to be related to documents, reports, or unstructured content
-            - The query is asking about procedures, policies, or general knowledge
-            
-            For the following query, determine the appropriate service (tag or rag), provide a confidence score (0-1),
-            and explain your reasoning. Return your answer as a JSON object with the keys: service, confidence, reasoning.
-            
-            User Query: {query}
-            """
-            
-            # Call the LLM
-            response = model.generate_content(prompt.format(query=query))
+            # Make the LLM call using our factory
+            response = await LLMFactory.complete(
+                messages=messages,
+                options=options
+            )
             
             # Parse the response as JSON
-            # First, try to extract JSON if it's surrounded by code blocks, markdown, or text
-            response_text = response.text.strip()
+            response_text = response.content.strip()
             
             # Try to find JSON content, handling various ways the LLM might format it
             import re

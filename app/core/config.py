@@ -85,6 +85,13 @@ class Settings(BaseSettings):
         elif isinstance(v, (list, str)):
             return v
 
+    # Add these new settings under the existing configuration
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "gemini")  # Default to gemini
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    DEFAULT_LLM_MODEL: Optional[str] = os.getenv("DEFAULT_LLM_MODEL", None)  # Default model based on provider
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")  # Default embedding model
+
     class Config:
         env_file = ".env"
         case_sensitive = True

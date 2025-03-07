@@ -5,6 +5,7 @@ from app.db.models.conversation import Conversation
 import logging
 
 from app.schemas.knowledge_base import KnowledgeBaseResponse
+from app.db.models.message import Message
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +79,22 @@ class KnowledgeBaseRepository:
     async def delete(kb_id: str, db: Session) -> bool:
         """Delete knowledge base and all related data in cascade"""
         try:
-            # First delete all messages in conversations
+            # First get all conversations related to the knowledge base
             conversations = db.query(Conversation).filter(Conversation.knowledge_base_id == kb_id).all()
+            
+            # For each conversation, delete all its messages first
+            for conv in conversations:
+                # Delete messages associated with this conversation
+                db.query(Message).filter(Message.conversation_id == conv.id).delete()
+            
+            # Commit the message deletions
+            db.commit()
+            
+            # Then delete all conversations
             for conv in conversations:
                 db.delete(conv)
             
-            # Then delete all conversations
+            # Commit the conversation deletions
             db.commit()
             
             # Delete all documents

@@ -10,7 +10,6 @@ import csv
 import markdown
 from PIL import Image
 import pytesseract
-import google.generativeai as genai
 
 from app.core.config import settings
 
@@ -23,7 +22,29 @@ from docling.document_converter import DocumentStream
 from app.db.storage import get_storage_db
 from app.repositories.storage_repository import StorageRepository
 
+from app.services.llm.factory import LLMFactory, Message, Role, CompletionOptions
+from app.core.prompts import get_prompt, register_prompt
+
 logger = logging.getLogger(__name__)
+
+# Register the prompt for SQL table generation
+register_prompt("ingestor", "generate_table_schema", """
+Generate a SQL database create table query for the given table name and headers. 
+Make sure to use headers as column names and rows as sample data.
+Rows contain sample data for the table. 
+
+Use your understanding to extrapolate scenario where datatype is not obvious, or might be different from the sample data.
+
+Example: CREATE TABLE IF NOT EXISTS {{ table_name }} (
+    {{ headers[0] }} VARCHAR(255) NOT NULL,
+    {{ headers[1] }} VARCHAR(255) NULL,
+    {{ headers[2] }} INTEGER DEFAULT 0
+);
+
+Table name: {{ table_name }}
+Headers: {{ headers }}
+Rows: {{ rows }}
+""")
 
 class Ingestor(ABC):
     """
@@ -199,10 +220,10 @@ class CSVIngestor(Ingestor):
             
             # Generate create table query
             table_name = metadata.get("document_title", f"csv_data_{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}").replace(".csv", "")
-            create_table_query = CSVIngestor.generate_create_table_query(table_name, headers, rows[1:10])
+            create_table_query = await CSVIngestor.generate_create_table_query(table_name, headers, rows[1:10])
             
             # insert into storage database as new table
-            storage_session = next(get_storage_db())
+            storage_session = get_storage_db().__next__()
 
             await StorageRepository.insert_csv(storage_session, table_name, create_table_query, headers, rows[1:])
 
@@ -225,32 +246,60 @@ class CSVIngestor(Ingestor):
             raise
 
     @staticmethod
-    def generate_create_table_query(table_name: str, headers: List[str], rows: List[List[str]]) -> str:
+    async def generate_create_table_query(table_name: str, headers: List[str], rows: List[List[str]]) -> str:
         """
         Generate a create table query for the given table name and rows.
         """
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        prompt = f"""
-        Generate a sql database create table query for the given table name and headers. 
-        Make sure to use headers as column names and rows as sample data.
-        Rows contain sample data for the table. 
-
-        Use your understanding to extrapolate scenario where datatype is not obvious, or might be different from the sample data.
-        
-        Example: CREATE TABLE IF NOT EXISTS {table_name} (
-            {headers[0]} VARCHAR(255) NOT NULL,
-            {headers[1]} VARCHAR(255) NULL,
-            {headers[2]} INTEGER DEFAULT 0
-        );
-
-        Table name: {table_name}
-        Headers: {headers}
-        Rows: {rows}
-        """.format(table_name=table_name, headers=headers, rows=rows)
-        response = model.generate_content(prompt)
-        sql_query = re.search(r"```sql(.*)```", response.text, re.DOTALL).group(1)
-        return sql_query
+        try:
+            # Get the prompt from the registry
+            prompt = get_prompt("ingestor", "generate_table_schema", 
+                                table_name=table_name, 
+                                headers=headers,
+                                rows=rows)
+            
+            # Create a message for the LLM
+            messages = [
+                Message(role=Role.USER, content=prompt)
+            ]
+            
+            # Set completion options
+            options = CompletionOptions(
+                temperature=0.3,  # Low temperature for more deterministic SQL generation
+                max_tokens=1000
+            )
+            
+            # Generate SQL using LLM Factory
+            response = await LLMFactory.complete(
+                messages=messages,
+                options=options
+            )
+            
+            # Extract SQL from response
+            response_text = response.content.strip()
+            
+            # Try to extract SQL from markdown code blocks if present
+            sql_match = re.search(r"```sql(.*)```", response_text, re.DOTALL)
+            if sql_match:
+                sql_query = sql_match.group(1).strip()
+            else:
+                # If no code block, just use the full response
+                sql_query = response_text
+            
+            logger.info(f"Generated SQL table creation query for {table_name}")
+            return sql_query
+            
+        except Exception as e:
+            logger.error(f"Error generating SQL table schema: {e}", exc_info=True)
+            # Fallback to a simple CREATE TABLE statement
+            sql_query = f"CREATE TABLE IF NOT EXISTS {table_name} ("
+            for i, header in enumerate(headers):
+                sql_query += f"\n    {header} VARCHAR(255)"
+                if i < len(headers) - 1:
+                    sql_query += ","
+            sql_query += "\n);"
+            
+            logger.warning(f"Using fallback SQL schema: {sql_query}")
+            return sql_query
 
 class MarkdownIngestor(Ingestor):
     """
