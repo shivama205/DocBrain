@@ -14,7 +14,7 @@ Enable reasoning over tabular data for more accurate responses to queries involv
 - ✅ Table detection and extraction from documents
 - ✅ SQL-like query capability over embedded tables
 - ✅ LLM prompt engineering for tabular reasoning
-- ✅ CSV & Excel document ingestors with table structure preservation
+- ✅ CSV document ingestors with table structure preservation
 
 **Implementation Details:**
 - Implemented specialized CSV ingestor with structure preservation
@@ -30,7 +30,7 @@ Enable reasoning over tabular data for more accurate responses to queries involv
 Add support for additional document formats with focus on structured data extraction.
 
 **Document Types:**
-- ✅ CSV / Excel spreadsheets
+- ✅ CSV spreadsheets
 - DOCX / Word documents
 - HTML with table extraction
 - PDF tables and forms
@@ -257,6 +257,102 @@ Explore graph-based retrieval to capture relationships between entities in docum
 - Implement graph-based retrieval algorithms
 - Integrate with existing retrieval methods
 
+## Current Architectural Constraints
+
+These constraints represent current limitations that may be addressed in future roadmap items:
+
+### Vector Store Dependency
+
+**Status: Active Constraint**
+
+- Current tight coupling with Pinecone for vector storage
+- Limited ability to switch providers without significant refactoring
+- Reliance on external API availability and rate limits
+
+**Mitigation Strategy:**
+- Implement the vector store abstraction layer (Roadmap item 5)
+- Develop local fallback options for development and testing
+- Create data migration utilities between providers
+
+### Table Query Limitations
+
+**Status: Active Constraint**
+
+- SQL generation limited to explicitly ingested tables
+- No support for cross-table joins or complex relationships
+- Limited schema inference capabilities
+
+**Mitigation Strategy:**
+- Enhance table schema extraction capabilities
+- Implement relationship detection between tables
+- Build safety mechanisms for SQL injection prevention
+- Explore GraphRAG for relationship modeling (Roadmap item 14)
+
+### Scalability Considerations
+
+**Status: Active Constraint**
+
+- No evident batch processing capability for high-volume ingestion
+- Limited control over chunking strategies
+- Potential bottlenecks in database operations for table-heavy workloads
+
+**Mitigation Strategy:**
+- Implement configurable chunking strategies
+- Develop batch processing capabilities for large document sets
+- Add worker scaling recommendations to deployment guide
+
+## Open Questions and Implementation Challenges
+
+These questions represent areas where design decisions are still in progress or require further research:
+
+### Vector-Table Integration
+
+**Priority: Medium**
+
+How should vector search results integrate with table data when both are relevant to a query?
+
+**Possible Approaches:**
+- Implement a unified ranking algorithm that scores both vector and table results
+- Use LLM to dynamically determine which source is more authoritative for a given query
+- Develop specialized prompting strategies for hybrid result sets
+- Explore structured metadata embeddings that incorporate table relationships
+
+### Caching Strategy
+
+**Priority: Medium**
+
+What caching approach provides the optimal balance of performance and freshness?
+
+**Areas to Explore:**
+- Which components benefit most from caching (embeddings, query results, LLM responses)
+- How to implement effective cache invalidation for updated documents
+- Appropriate time-to-live settings for different cache types
+- Potential for pre-computation of common queries
+
+### Confidence Scoring Calibration
+
+**Priority: High**
+
+How can we ensure routing confidence scores are well-calibrated and reliable?
+
+**Research Directions:**
+- Evaluation metrics for routing decision quality
+- Methods for continuous improvement of router accuracy
+- Threshold tuning methodology for different query types
+- Implementation of feedback loops from user interactions
+
+### Response Validation
+
+**Priority: High**
+
+What mechanisms can ensure factual accuracy and prevent hallucination?
+
+**Potential Solutions:**
+- Implement grounding techniques to verify generated content against retrieved context
+- Develop confidence scoring for answer components
+- Create explicit citation mechanisms linking assertions to source material
+- Explore multi-step generation with self-verification
+
 ## Success Metrics
 
 For each enhancement, we will measure:
@@ -277,12 +373,13 @@ We welcome community input on this roadmap. If you have suggestions for features
 
 ## Revision History
 
+- **v1.4** - Added architectural constraints and open questions sections (May 2024)
 - **v1.3** - Updated to mark completion of TAG and Query Router features (May 2024)
 - **v1.2** - Updated priorities based on implementation focus (May 2024)
 - **v1.1** - Updated with comprehensive feature list (May 2024)
 - **v1.0** - Initial roadmap created (May 2024)
 
-## Roadmap
+## Roadmap Summary
 
 DocBrain has an ambitious development roadmap focused on enhancing capabilities while maintaining our commitment to privacy and security.
 

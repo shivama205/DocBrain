@@ -91,9 +91,11 @@ DATABASE_URL=mysql+pymysql://username:password@localhost/docbrain
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_ENVIRONMENT=your_pinecone_environment
 
-# LLM settings (Google Gemini is currently the only supported model)
-LLM_PROVIDER=gemini
+# LLM settings
+LLM_PROVIDER=gemini  # Options: gemini, openai, anthropic, etc.
 GEMINI_API_KEY=your_gemini_api_key
+OPENAI_API_KEY=your_openai_api_key
+# Add other provider API keys as needed
 
 # Document storage
 DOCUMENT_STORAGE_PATH=./storage/documents
@@ -140,10 +142,10 @@ DocBrain has an ambitious development roadmap focused on enhancing capabilities 
 We've recently completed implementation of:
 - ✅ **Table Augmented Generation (TAG)** - SQL-based tabular data querying
 - ✅ **Query Router** - Intelligent routing between retrieval methods
+- ✅ **Multiple LLM Provider Support** - Factory pattern for integrating various LLM providers
 
 Some planned future features include:
 - **Multiple Vector Database Support** - Alternatives to Pinecone
-- **Multiple LLM Provider Support** - Integration with OpenAI, Anthropic, etc.
 - **RAG Evaluation Framework** - Integration with RAGAS for measuring performance
 - **Access Control** - Document-level permission system
 
