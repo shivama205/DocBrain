@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Security](https://img.shields.io/badge/security-self--hosted-brightgreen)
 
-A privacy-focused, modular Retrieval-Augmented Generation framework for enterprises requiring full control over their sensitive data. Built for developers who need an alternative to third-party RAG services. Now with enhanced query routing and table data support.
+A privacy-focused, modular Retrieval-Augmented Generation framework for enterprises requiring full control over their sensitive data. Built for developers who need an alternative to third-party RAG services. Now with enhanced query routing, table data support, and robust role-based access controls.
 
 ## Why DocBrain?
 
@@ -26,6 +26,8 @@ A privacy-focused, modular Retrieval-Augmented Generation framework for enterpri
 | **Multiple LLM Provider Support** | Factory pattern implementation supporting Google Gemini, OpenAI, and other providers |
 | **Query Router** | Intelligent routing between different retrieval methods based on query type |
 | **Table Augmented Generation (TAG)** | Enhanced reasoning over tabular data (CSV, Excel) with automatic SQL generation |
+| **Role-Based Access Control** | Comprehensive permission system with Admin, Owner, and User roles |
+| **Knowledge Base Sharing** | Secure sharing of knowledge bases between users with granular controls |
 
 ## Project Philosophy
 
@@ -135,6 +137,30 @@ TAG enhances DocBrain's ability to reason over tabular data:
 - **Query Execution**: Runs generated SQL against stored tables and formats results
 - **Explanation Generation**: Provides natural language explanations of results alongside the data
 
+### Role-Based Access Control (RBAC)
+
+DocBrain implements a comprehensive permission system to secure your data:
+
+- **User Roles**: Three predefined roles with escalating privileges:
+  - **User**: Basic access to shared knowledge bases and conversation capabilities
+  - **Owner**: Can create, manage, and share their own knowledge bases
+  - **Admin**: Full system access with user management capabilities
+  
+- **Permission System**: Granular permissions control access to specific features:
+  - Knowledge base management (view, create, update, delete)
+  - Document operations (view, upload, delete)
+  - User management (view, create, update, delete)
+  - System administration
+
+- **Knowledge Base Sharing**: Secure sharing mechanism allows:
+  - Owners to share knowledge bases with specific users
+  - Users to access only knowledge bases explicitly shared with them
+  - Dedicated API endpoint for users to view knowledge bases shared with them
+
+## Release Notes
+
+For detailed information about the latest features and improvements, please see our [RELEASE_NOTES.md](RELEASE_NOTES.md) file.
+
 ## Roadmap
 
 DocBrain has an ambitious development roadmap focused on enhancing capabilities while maintaining our commitment to privacy and security.
@@ -143,11 +169,15 @@ We've recently completed implementation of:
 - ✅ **Table Augmented Generation (TAG)** - SQL-based tabular data querying
 - ✅ **Query Router** - Intelligent routing between retrieval methods
 - ✅ **Multiple LLM Provider Support** - Factory pattern for integrating various LLM providers
+- ✅ **Role-Based Access Control** - Comprehensive permission system
+- ✅ **Knowledge Base Sharing** - Secure sharing between users
 
 Some planned future features include:
 - **Multiple Vector Database Support** - Alternatives to Pinecone
 - **RAG Evaluation Framework** - Integration with RAGAS for measuring performance
-- **Access Control** - Document-level permission system
+- **Document-Level Permissions** - Fine-grained access control at the document level
+- **API Rate Limiting** - Prevent abuse and ensure fair resource allocation
+- **Advanced Analytics** - Usage statistics and performance metrics
 
 For the full development roadmap with implementation details and planned features, see our [ROADMAP.md](ROADMAP.md) file.
 
