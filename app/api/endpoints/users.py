@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db.models.user import User
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserWithPermissions
 from app.services.user_service import UserService
 from app.api.deps import get_current_user
 from app.db.database import get_db
+from app.core.permissions import get_permissions_for_role, Permission, check_permission
 
 router = APIRouter()
 
@@ -24,24 +25,35 @@ async def create_user(
 @router.get("", response_model=List[UserResponse])
 async def list_users(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _: User = Depends(check_permission(Permission.VIEW_USERS))
 ):
     """
-    List all users (admin only).
+    List all users (admin and owner roles).
     """
     user_service = UserService(db)
     return await user_service.list_users(current_user)
 
-@router.get("/me", response_model=UserResponse)
+@router.get("/me", response_model=UserWithPermissions)
 async def get_current_user_info(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Get current user information.
+    Get current user information with permissions.
+    Returns detailed information about the current user, including their role and permissions.
     """
     user_service = UserService(db)
-    return await user_service.get_user(str(current_user.id))
+    user = await user_service.get_user(str(current_user.id))
+    
+    # Get permissions for the user's role
+    permissions = [perm.value for perm in get_permissions_for_role(user.role)]
+    
+    # Create a UserWithPermissions response
+    return {
+        **user.dict(),
+        "permissions": permissions
+    }
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(

@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from pydantic import BaseModel, EmailStr, Field
 from app.db.models.user import UserRole
 
@@ -40,6 +40,13 @@ class UserResponse(UserBase):
     is_active: bool = Field(..., alias="is_active")
     hashed_password: str = Annotated[str, Field(exclude=True)]
 
+    class Config:
+        from_attributes = True 
+        
+class UserWithPermissions(UserResponse):
+    """User response with permissions information"""
+    permissions: List[str] = Field(..., description="List of permissions the user has based on their role")
+    
     class Config:
         from_attributes = True 
         

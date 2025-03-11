@@ -93,15 +93,18 @@ class KnowledgeBaseService:
         current_user: UserResponse
     ) -> KnowledgeBaseResponse:
         """Get a knowledge base by ID"""
-        kb =  await self.repository.get_by_id(kb_id, self.db)
+        kb = await self.repository.get_by_id(kb_id, self.db)
         if not kb:
             raise HTTPException(status_code=404, detail="Knowledge base not found")
         
         # Check if user has access
         if str(kb.user_id) != str(current_user.id):
-            # Check if user is in shared_with
-            if not any(str(user.id) == str(current_user.id) for user in kb.shared_with):
-                raise HTTPException(status_code=403, detail="You don't have access to this knowledge base")
+            # Check if user is an admin or owner (role-based access)
+            if current_user.role != UserRole.ADMIN and current_user.role != UserRole.OWNER:
+                # Check if the KB is explicitly shared with this user
+                is_shared = await self.repository.is_shared_with_user(kb_id, current_user.id, self.db)
+                if not is_shared:
+                    raise HTTPException(status_code=403, detail="You don't have access to this knowledge base")
         
         return kb
 
@@ -110,10 +113,15 @@ class KnowledgeBaseService:
         current_user: UserResponse
     ) -> List[KnowledgeBase]:
         """List all knowledge bases accessible to the user"""
+        # For admin, return all knowledge bases
         if current_user.role == UserRole.ADMIN:
             return await self.repository.list_all(self.db)
-        else:
+        # For owner, return only knowledge bases they own 
+        elif current_user.role == UserRole.OWNER:
             return await self.repository.list_by_owner(current_user.id, self.db)
+        # For regular users, return an empty list
+        else:
+            return []  # Regular users see an empty list, but don't get an error
 
     async def update_knowledge_base(
         self,
@@ -168,14 +176,97 @@ class KnowledgeBaseService:
         except Exception as e:
             logger.error(f"Error deleting knowledge base: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Failed to delete knowledge base: {str(e)}")
-
+            
     async def share_knowledge_base(
         self,
         kb_id: str,
         user_id: str,
         current_user: UserResponse
-    ) -> None:
+    ) -> bool:
         """Share a knowledge base with another user"""
-        # Implementation will depend on how sharing is handled in your database model
-        # This is a placeholder for the actual implementation
-        pass 
+        # Get the knowledge base
+        kb = await self.repository.get_by_id(kb_id, self.db)
+        if not kb:
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+        
+        # Check if the current user has permission to share
+        if str(kb.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN and current_user.role != UserRole.OWNER:
+            raise HTTPException(status_code=403, detail="You don't have permission to share this knowledge base")
+        
+        # Get the user to share with
+        from app.repositories.user_repository import UserRepository
+        user_repository = UserRepository()
+        user = await user_repository.get_by_id(user_id, self.db)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check if already shared with this user
+        is_already_shared = await self.repository.is_shared_with_user(kb_id, user_id, self.db)
+        if is_already_shared:
+            return True  # Already shared, consider it a success
+        
+        try:
+            # Add the sharing relationship
+            await self.repository.add_user_access(kb_id, user_id, self.db)
+            return True
+        except Exception as e:
+            logger.error(f"Error sharing knowledge base: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to share knowledge base: {str(e)}")
+            
+    async def unshare_knowledge_base(
+        self,
+        kb_id: str,
+        user_id: str,
+        current_user: UserResponse
+    ) -> bool:
+        """Remove a user's access to a knowledge base"""
+        # Get the knowledge base
+        kb = await self.repository.get_by_id(kb_id, self.db)
+        if not kb:
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+        
+        # Check if the current user has permission to unshare
+        if str(kb.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN and current_user.role != UserRole.OWNER:
+            raise HTTPException(status_code=403, detail="You don't have permission to modify sharing for this knowledge base")
+        
+        try:
+            # Remove the sharing relationship
+            await self.repository.remove_user_access(kb_id, user_id, self.db)
+            return True
+        except Exception as e:
+            logger.error(f"Error unsharing knowledge base: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to unshare knowledge base: {str(e)}")
+            
+    async def list_shared_users(
+        self,
+        kb_id: str,
+        current_user: UserResponse
+    ) -> List:
+        """List all users who have access to a knowledge base"""
+        # Get the knowledge base
+        kb = await self.repository.get_by_id(kb_id, self.db)
+        if not kb:
+            raise HTTPException(status_code=404, detail="Knowledge base not found")
+        
+        # Check if the current user has permission to view sharing info
+        if str(kb.user_id) != str(current_user.id) and current_user.role != UserRole.ADMIN and current_user.role != UserRole.OWNER:
+            raise HTTPException(status_code=403, detail="You don't have permission to view sharing information for this knowledge base")
+        
+        try:
+            return await self.repository.get_shared_users(kb_id, self.db)
+        except Exception as e:
+            logger.error(f"Error listing shared users: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to list shared users: {str(e)}")
+            
+    async def list_shared_knowledge_bases(
+        self,
+        current_user: UserResponse
+    ) -> List[KnowledgeBaseResponse]:
+        """List all knowledge bases shared with the current user"""
+        try:
+            shared_kbs = await self.repository.list_shared_with_user(current_user.id, self.db)
+            # Always return a list, even if empty
+            return shared_kbs if shared_kbs else []
+        except Exception as e:
+            logger.error(f"Error listing shared knowledge bases: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to list shared knowledge bases: {str(e)}") 

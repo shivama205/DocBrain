@@ -1,4 +1,5 @@
-from sqlalchemy import Column, LargeBinary, String, Text, ForeignKey, DateTime, Integer
+from sqlalchemy import Column, LargeBinary, String, Text, ForeignKey, DateTime, Integer, Table
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import enum
 
@@ -58,6 +59,15 @@ class Document(BaseModel):
             }
         } 
 
+# Knowledge base sharing association table
+knowledge_base_sharing = Table(
+    "knowledge_base_sharing",
+    BaseModel.metadata,
+    Column("knowledge_base_id", String, ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("created_at", DateTime, default=func.now()),
+)
+
 class KnowledgeBase(BaseModel):
     """Knowledge base model"""
     __tablename__ = "knowledge_bases"
@@ -67,4 +77,7 @@ class KnowledgeBase(BaseModel):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Define relationship to users that this knowledge base is shared with
+    shared_with = relationship("User", secondary=knowledge_base_sharing, lazy="joined", backref="shared_knowledge_bases")
     

@@ -8,24 +8,16 @@ logger = logging.getLogger(__name__)
 
 class UserRepository:
     @staticmethod
-    async def create(user_data: UserCreate, db: Session) -> UserResponse:
+    async def create(user_data: User, db: Session) -> UserResponse:
         """Create a new user"""
         try:
-            # Create a new User instance from the UserCreate data
-            db_user = User(
-                email=user_data.email,
-                hashed_password=user_data.password,  # Note: This should be hashed before reaching here
-                full_name=user_data.full_name,
-                role=user_data.role
-            )
-            
-            # Add to session and commit
-            db.add(db_user)
+            # Add user to session and commit
+            db.add(user_data)
             db.commit()
-            db.refresh(db_user)
+            db.refresh(user_data)
             
             # Convert to response model
-            return UserResponse.model_validate(db_user)
+            return UserResponse.model_validate(user_data)
         except Exception as e:
             db.rollback()
             logger.error(f"Failed to create user: {e}")

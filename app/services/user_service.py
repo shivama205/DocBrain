@@ -23,7 +23,8 @@ class UserService:
             email=user_data.email,
             hashed_password=get_password_hash(user_data.password),
             full_name=user_data.full_name,
-            role=user_data.role or UserRole.USER
+            role=user_data.role or UserRole.USER,
+            is_verified=True
         )
         return await self.repository.create(user, self.db)
 
@@ -39,8 +40,8 @@ class UserService:
         return await self.repository.get_by_email(email, self.db)
 
     async def list_users(self, current_user: User) -> List[UserResponse]:
-        """List all users (admin only)"""
-        if current_user.role != UserRole.ADMIN:
+        """List all users (admin and owner roles)"""
+        if current_user.role != UserRole.ADMIN and current_user.role != UserRole.OWNER:
             raise HTTPException(status_code=403, detail="Not enough privileges")
         return await self.repository.list_all(self.db)
 

@@ -16,6 +16,14 @@ class KnowledgeBaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
+class SharedUserInfo(BaseModel):
+    id: str
+    email: str
+    full_name: str
+
+    class Config:
+        from_attributes = True
+
 class KnowledgeBaseResponse(KnowledgeBaseBase):
     id: str
     user_id: str
@@ -41,4 +49,14 @@ class DocumentResponse(BaseModel):
 class DocumentUploadResponse(BaseModel):
     document_id: str
     status: DocumentStatus
-    message: str = "Document upload initiated" 
+    message: str = "Document upload initiated"
+
+class KnowledgeBaseShareRequest(BaseModel):
+    user_id: str = Field(..., description="ID of the user to share the knowledge base with")
+
+class KnowledgeBaseUnshareRequest(BaseModel):
+    user_id: str = Field(..., description="ID of the user to remove access for")
+
+class KnowledgeBaseSharingResponse(BaseModel):
+    success: bool
+    message: str 

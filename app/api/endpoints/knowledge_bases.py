@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
     KnowledgeBaseUpdate,
-    KnowledgeBaseResponse
+    KnowledgeBaseResponse,
+    KnowledgeBaseShareRequest,
+    KnowledgeBaseUnshareRequest,
+    KnowledgeBaseSharingResponse,
+    SharedUserInfo
 )
 from app.schemas.document import DocumentUpdate, DocumentResponse, DocumentUpload
 from app.api.deps import get_current_user
@@ -20,6 +24,7 @@ from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from app.core.config import settings
 from app.worker.celery import celery_app
 from app.db.database import get_db
+from app.core.permissions import check_permission, Permission
 
 import logging
 
@@ -83,10 +88,25 @@ async def create_knowledge_base(
 @router.get("", response_model=List[KnowledgeBaseResponse])
 async def list_knowledge_bases(
     current_user: UserResponse = Depends(get_current_user),
-    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    _: UserResponse = Depends(check_permission(Permission.VIEW_KNOWLEDGE_BASES))
 ):
-    """List all knowledge bases accessible to the user"""
+    """
+    List knowledge bases based on role:
+    - Admin: All knowledge bases
+    - Owner: Only knowledge bases owned by the user
+    - User: Empty list (users should use shared-with-me endpoint)
+    """
     return await kb_service.list_knowledge_bases(current_user)
+
+@router.get("/shared-with-me", response_model=List[KnowledgeBaseResponse])
+async def get_shared_knowledge_bases(
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    current_user: UserResponse = Depends(get_current_user),
+    _: UserResponse = Depends(check_permission(Permission.VIEW_KNOWLEDGE_BASES))
+):
+    """Get all knowledge bases shared with the current user"""
+    return await kb_service.list_shared_knowledge_bases(current_user)
 
 @router.get("/{kb_id}", response_model=KnowledgeBaseResponse)
 async def get_knowledge_base(
@@ -117,16 +137,45 @@ async def delete_knowledge_base(
     await kb_service.delete_knowledge_base(kb_id, current_user)
     return JSONResponse(content={"message": "Knowledge base deleted successfully"})
 
-@router.post("/{kb_id}/share/{user_id}")
+@router.post("/{kb_id}/share", response_model=KnowledgeBaseSharingResponse)
 async def share_knowledge_base(
     kb_id: str,
-    user_id: str,
+    share_data: KnowledgeBaseShareRequest,
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
     current_user: UserResponse = Depends(get_current_user),
-    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service)
+    _: UserResponse = Depends(check_permission(Permission.UPDATE_KNOWLEDGE_BASE))
 ):
-    """Share knowledge base with another user"""
-    await kb_service.share_knowledge_base(kb_id, user_id, current_user)
-    return JSONResponse(content={"message": "Knowledge base shared successfully"})
+    """Share a knowledge base with another user"""
+    success = await kb_service.share_knowledge_base(kb_id, share_data.user_id, current_user)
+    return KnowledgeBaseSharingResponse(
+        success=success,
+        message="Knowledge base shared successfully" if success else "Failed to share knowledge base"
+    )
+
+@router.post("/{kb_id}/unshare", response_model=KnowledgeBaseSharingResponse)
+async def unshare_knowledge_base(
+    kb_id: str,
+    unshare_data: KnowledgeBaseUnshareRequest,
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    current_user: UserResponse = Depends(get_current_user),
+    _: UserResponse = Depends(check_permission(Permission.UPDATE_KNOWLEDGE_BASE))
+):
+    """Remove a user's access to a knowledge base"""
+    success = await kb_service.unshare_knowledge_base(kb_id, unshare_data.user_id, current_user)
+    return KnowledgeBaseSharingResponse(
+        success=success,
+        message="Knowledge base access removed successfully" if success else "Failed to remove knowledge base access"
+    )
+
+@router.get("/{kb_id}/shared-users", response_model=List[SharedUserInfo])
+async def get_shared_users(
+    kb_id: str,
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    current_user: UserResponse = Depends(get_current_user),
+    _: UserResponse = Depends(check_permission(Permission.VIEW_KNOWLEDGE_BASES))
+):
+    """Get all users who have access to a knowledge base"""
+    return await kb_service.list_shared_users(kb_id, current_user)
 
 @router.post("/{kb_id}/documents", response_model=DocumentResponse)
 async def create_document(
