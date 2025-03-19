@@ -18,6 +18,11 @@ class VectorStore(ABC):
         pass
     
     @abstractmethod
+    async def add_texts(self, texts: List[str], metadatas: List[Dict], ids: List[str], collection_name: str) -> None:
+        """Add texts with metadata to the vector store"""
+        pass
+    
+    @abstractmethod
     async def delete_document_chunks(self, document_id: str, knowledge_base_id: str) -> None:
         """Delete all chunks for a document from the vector store"""
         pass
@@ -162,6 +167,43 @@ class PineconeVectorStore(VectorStore):
             
         except Exception as e:
             logger.error(f"Failed to add chunks to Pinecone: {e}", exc_info=True)
+            raise
+
+    async def add_texts(self, texts: List[str], metadatas: List[Dict], ids: List[str], collection_name: str) -> None:
+        """Add texts with metadata to Pinecone
+        
+        Args:
+            texts: List of text content
+            metadatas: List of metadata dictionaries
+            ids: List of unique identifiers
+            collection_name: Name of collection (used as namespace)
+        """
+        try:
+            logger.info(f"Adding {len(texts)} texts to collection {collection_name}")
+            
+            # Convert to the format expected by add_chunks
+            chunks = []
+            for i, (text, metadata, id) in enumerate(zip(texts, metadatas, ids)):
+                chunk = {
+                    'content': text,
+                    'metadata': {
+                        'document_id': id,
+                        'chunk_index': i,
+                        'chunk_size': len(text),
+                        'document_title': metadata.get('title', ''),
+                        'document_type': metadata.get('type', ''),
+                        'nearest_header': metadata.get('section', ''),
+                        'section_path': metadata.get('path', '').split(',') if 'path' in metadata else [],
+                        **metadata  # Include other metadata fields
+                    }
+                }
+                chunks.append(chunk)
+            
+            # Use collection_name as knowledge_base_id
+            await self.add_chunks(chunks, collection_name)
+            
+        except Exception as e:
+            logger.error(f"Failed to add texts to Pinecone: {e}", exc_info=True)
             raise
 
     async def delete_document_chunks(self, document_id: str, knowledge_base_id: str) -> None:
