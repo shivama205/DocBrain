@@ -343,41 +343,88 @@ async def bulk_upload_questions(
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="Only CSV files are allowed")
     
-    # Read CSV file
-    contents = await file.read()
-    csv_data = contents.decode('utf-8')
-    csv_reader = csv.DictReader(io.StringIO(csv_data))
-    
-    # Validate required fields
-    required_fields = ['question', 'answer', 'answer_type']
-    if not all(field in csv_reader.fieldnames for field in required_fields):
-        raise HTTPException(
-            status_code=400, 
-            detail=f"CSV must contain the following columns: {', '.join(required_fields)}"
-        )
-    
-    # Process questions
-    results = {
-        "success": 0,
-        "failed": 0,
-        "errors": []
-    }
-    
-    for row_idx, row in enumerate(csv_reader, start=2):  # Start at 2 to account for header row
+    try:
+        # Read CSV file
+        contents = await file.read()
+        
+        # Try to decode with different encodings if UTF-8 fails
         try:
-            # Create question model
-            question_data = QuestionCreate(
-                question=row['question'].strip(),
-                answer=row['answer'].strip(),
-                answer_type=row['answer_type'].strip().upper()
-            )
+            csv_data = contents.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                csv_data = contents.decode('latin-1')
+            except:
+                raise HTTPException(status_code=400, detail="Unable to decode CSV file. Please ensure it's properly encoded (UTF-8 or Latin-1).")
+        
+        # Handle empty file
+        if not csv_data.strip():
+            raise HTTPException(status_code=400, detail="The uploaded CSV file is empty.")
             
-            # Create question
-            await question_service.create_question(kb_id, question_data, current_user)
-            results["success"] += 1
+        # Parse CSV
+        try:
+            csv_reader = csv.DictReader(io.StringIO(csv_data))
             
-        except Exception as e:
-            results["failed"] += 1
-            results["errors"].append(f"Row {row_idx}: {str(e)}")
-    
-    return results 
+            # Check if we got any fieldnames
+            if not csv_reader.fieldnames:
+                raise HTTPException(status_code=400, detail="Could not parse CSV headers. Please ensure the file is properly formatted.")
+                
+            # Validate required fields
+            required_fields = ['question', 'answer', 'answer_type']
+            missing_fields = [field for field in required_fields if field not in csv_reader.fieldnames]
+            
+            if missing_fields:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"CSV is missing required columns: {', '.join(missing_fields)}. Required columns are: {', '.join(required_fields)}"
+                )
+            
+            # Process questions
+            results = {
+                "success": 0,
+                "failed": 0,
+                "errors": []
+            }
+            
+            rows = list(csv_reader)
+            if not rows:
+                return {"success": 0, "failed": 0, "errors": ["The CSV file contains no data rows."]}
+                
+            for row_idx, row in enumerate(rows, start=2):  # Start at 2 to account for header row
+                try:
+                    # Validate answer_type
+                    answer_type = row['answer_type'].strip().upper()
+                    if answer_type not in ["DIRECT", "SQL_QUERY"]:
+                        raise ValueError(f"Invalid answer_type '{answer_type}'. Must be one of: DIRECT, SQL_QUERY")
+                        
+                    # Validate required values
+                    if not row['question'].strip():
+                        raise ValueError("Question cannot be empty")
+                    if not row['answer'].strip():
+                        raise ValueError("Answer cannot be empty")
+                        
+                    # Create question model
+                    question_data = QuestionCreate(
+                        question=row['question'].strip(),
+                        answer=row['answer'].strip(),
+                        answer_type=answer_type
+                    )
+                    
+                    # Create question
+                    await question_service.create_question(kb_id, question_data, current_user)
+                    results["success"] += 1
+                    
+                except Exception as e:
+                    results["failed"] += 1
+                    results["errors"].append(f"Row {row_idx}: {str(e)}")
+            
+            return results
+            
+        except csv.Error as e:
+            raise HTTPException(status_code=400, detail=f"CSV parsing error: {str(e)}")
+            
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Catch all other exceptions
+        raise HTTPException(status_code=500, detail=f"Error processing CSV file: {str(e)}") 

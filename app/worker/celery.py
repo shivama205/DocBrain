@@ -117,7 +117,7 @@ def run_worker():
     pre_initialize_models()
     
     # Use --pool=solo on macOS to avoid fork-related issues
-    worker_args = ["worker", "--loglevel=info", "-E"]
+    worker_args = ["worker", "--purge", "--loglevel=info", "-E"]
     if platform.system() == "Darwin":
         worker_args.append("--pool=solo")
         logger.info("Using solo pool for macOS to avoid fork() issues")

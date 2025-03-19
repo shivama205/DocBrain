@@ -263,3 +263,65 @@ OR
   "errors": ["Row 3: Value error, answer_type must be one of: DIRECT, SQL_QUERY"]
 }
 ``` 
+
+## 8. Questions in Retrieval Responses
+
+When a user query is processed, the system first checks if there's a matching question in the Questions index. If a match is found with sufficient confidence, the question and its answer will be included in the response sources.
+
+### Messages API Response with Question Sources
+
+The `/api/conversations/{conversation_id}/messages` endpoint will return messages with sources that can include question matches:
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174010",
+  "content": "DocBrain is a knowledge management system designed to help organizations manage their documents and information efficiently.",
+  "content_type": "TEXT",
+  "kind": "ASSISTANT",
+  "user_id": "123e4567-e89b-12d3-a456-426614174002",
+  "conversation_id": "123e4567-e89b-12d3-a456-426614174003",
+  "knowledge_base_id": "123e4567-e89b-12d3-a456-426614174001",
+  "sources": [
+    {
+      "score": 0.85,
+      "content": "What is DocBrain?",
+      "question_id": "123e4567-e89b-12d3-a456-426614174000",
+      "question": "What is DocBrain?",
+      "answer": "DocBrain is a knowledge management system.",
+      "answer_type": "DIRECT",
+      "routing": {
+        "service": "questions",
+        "confidence": 0.85,
+        "reasoning": "Found direct answer in questions index with confidence 0.85"
+      }
+    }
+  ],
+  "message_metadata": {
+    "routing": {
+      "service": "questions",
+      "confidence": 0.85,
+      "reasoning": "Found direct answer in questions index with confidence 0.85",
+      "fallback": false
+    }
+  },
+  "status": "PROCESSED",
+  "created_at": "2023-01-01T00:00:00",
+  "updated_at": "2023-01-01T00:00:05"
+}
+```
+
+### Question Source Schema
+
+In the message response, question sources have the following structure:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| score | float | Relevance score of the matched question (0-1) |
+| content | string | The matched question text (for display purposes) |
+| question_id | string | Unique identifier of the matched question |
+| question | string | The matched question |
+| answer | string | The original answer to the matched question |
+| answer_type | string | Type of answer (DIRECT or SQL_QUERY) |
+| routing | object | Metadata about how the question was selected |
+
+Document-specific fields (`document_id`, `title`, `chunk_index`) are optional for question sources, while question-specific fields (`question_id`, `question`, `answer`, `answer_type`) will be present. 

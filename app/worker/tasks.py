@@ -499,15 +499,28 @@ def initiate_question_ingestion(self, question_id: str) -> None:
         except Exception as e:
             logger.error(f"Failed to ingest question: {e}", exc_info=True)
             raise
+
+    # Create a new event loop for this task
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     
-    loop = asyncio.get_event_loop()
     try:
-        for db in get_db():
-            loop.run_until_complete(_ingest(db))
-            break
+        # Get database session
+        db = next(get_db())
+        # Run the async function
+        loop.run_until_complete(_ingest(db))
     except Exception as e:
         logger.error(f"Error in question ingestion: {e}", exc_info=True)
         self.retry(exc=e)
+    finally:
+        # Clean up resources
+        try:
+            if loop.is_running():
+                loop.stop()
+            if not loop.is_closed():
+                loop.close()
+        except Exception as e:
+            logger.error(f"Error cleaning up event loop: {e}", exc_info=True)
 
 @shared_task(
     bind=True,
@@ -544,7 +557,15 @@ def initiate_question_vector_deletion(self, question_id: str, knowledge_base_id:
             logger.error(f"Failed to delete question vectors: {e}", exc_info=True)
             raise
     
-    loop = asyncio.get_event_loop()
+    # Create or get the event loop explicitly
+    try:
+        # Try to get existing event loop
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        # If there's no event loop, create a new one and set it
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
     try:
         for db in get_db():
             loop.run_until_complete(_delete_vectors(db))
@@ -552,3 +573,10 @@ def initiate_question_vector_deletion(self, question_id: str, knowledge_base_id:
     except Exception as e:
         logger.error(f"Error in question vector deletion: {e}", exc_info=True)
         self.retry(exc=e)
+    finally:
+        # Clean up resources
+        if loop.is_running():
+            loop.stop()
+        # In Python 3.7+, the following is deprecated but we'll include it for compatibility
+        if not loop.is_closed():
+            loop.close()
