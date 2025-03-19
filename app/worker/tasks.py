@@ -311,45 +311,22 @@ def initiate_rag_retrieval(
             # Get the query router - this is a singleton
             query_router = get_query_router()
             
-            # STEP 1: Get routing decision using the LLM-based router
-            routing_info = await query_router.analyze_query(query)
-            service = routing_info.get("service", "rag")  # Default to RAG service
-            logger.info(f"Router decided to use {service} service with confidence {routing_info.get('confidence', 0)}")
-            logger.info(f"Reasoning: {routing_info.get('reasoning', 'No reasoning provided')}")
+            # Use the full route_and_dispatch method to handle questions index and proper routing
+            logger.info(f"Calling query router to route and dispatch query: '{query}'")
             
-            metadata_filter = {}
+            metadata_filter = {"knowledge_base_id": knowledge_base_id} if knowledge_base_id else {}
             
-            if service == "tag":
-                logger.info(f"Calling TAG service for text-to-SQL query: '{query}'")
-                # TAG service now directly accesses database schema to generate SQL
-                response = await query_router.tag_service.retrieve(
-                    knowledge_base_id=knowledge_base_id,
-                    query=query,
-                    metadata_filter=metadata_filter
-                )
-                
-                # Add SQL information to the response metadata if available
-                if response.get("sql"):
-                    if not "metadata" in response:
-                        response["metadata"] = {}
-                    response["metadata"]["sql_query"] = response.get("sql")
-                    
-                response["service"] = "tag"
-            else:  # Default to RAG
-                logger.info(f"Calling RAG service for query: '{query}'")
-                response = await query_router.rag_service.retrieve(
-                    knowledge_base_id=knowledge_base_id,
-                    query=query,
-                    top_k=top_k,
-                    similarity_threshold=similarity_threshold,
-                    metadata_filter=metadata_filter
-                )
-                response["service"] = "rag"
-            
-            # Add routing information to the response
-            response["routing_info"] = routing_info
+            # This will check questions index first, then route if needed
+            response = await query_router.route_and_dispatch(
+                query=query,
+                metadata_filter=metadata_filter,
+                top_k=top_k,
+                similarity_threshold=similarity_threshold
+            )
             
             # Log which service was used
+            service = response.get("service", "unknown")
+            routing_info = response.get("routing_info", {})
             logger.info(f"Successfully processed query using {service} service")
             
             # Add routing metadata to the response sources and ensure all required fields are present
@@ -447,31 +424,33 @@ def initiate_question_ingestion(self, question_id: str) -> None:
             logger.info(f"Updating question {question_id} status to INGESTING")
             await QUESTION_REPO.set_ingesting(question_id, db)
             
-            # Prepare metadata
-            metadata = {
-                "question_id": question_id,
-                "knowledge_base_id": question.knowledge_base_id,
-                "answer_type": question.answer_type,
-                "user_id": question.user_id,
-            }
-            
-            # Format content for vector store
-            formatted_content = f"Question: {question.question}\nAnswer: {question.answer}"
-            
             try:
                 # Get vector store instance
-                vector_store = get_vector_store()
+                vector_store = get_vector_store(
+                    store_type="pinecone",
+                    index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
+                )
                 
-                # Store in vector store with namespace for questions
+                # Create metadata with all relevant fields
+                metadata = {
+                    "question_id": question_id,
+                    "knowledge_base_id": question.knowledge_base_id,
+                    "answer_type": str(question.answer_type),
+                    "user_id": str(question.user_id),
+                }
+                
+                # Format content for vector store - include both question and answer in content
+                formatted_content = f"Question: {question.question}\nAnswer: {question.answer}"
+                
+                # Store in vector store using knowledge_base_id as namespace
                 await vector_store.add_texts(
                     texts=[formatted_content],
                     metadatas=[metadata],
                     ids=[f"question:{question_id}"],
-                    collection_name=f"kb_{question.knowledge_base_id}_questions"
+                    collection_name=question.knowledge_base_id
                 )
                 
-                # Update status to completed
-                logger.info(f"Question {question_id} successfully ingested")
+                logger.info(f"Question {question_id} successfully ingested into questions index")
                 await QUESTION_REPO.set_completed(question_id, db)
                 
             except Exception as e:
@@ -510,16 +489,19 @@ def initiate_question_vector_deletion(self, question_id: str, knowledge_base_id:
     
     async def _delete_vectors(db: Session):
         try:
-            # Get vector store instance
-            vector_store = get_vector_store()
-            
-            # Delete from vector store
-            result = await vector_store.delete(
-                ids=[f"question:{question_id}"],
-                collection_name=f"kb_{knowledge_base_id}_questions"
+            # Get vector store instance for questions index
+            vector_store = get_vector_store(
+                store_type="pinecone",
+                index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
             )
             
-            logger.info(f"Successfully deleted question {question_id} vectors: {result}")
+            # Delete from vector store using knowledge_base_id as namespace
+            await vector_store.delete_document_chunks(
+                document_id=f"question:{question_id}",
+                knowledge_base_id=knowledge_base_id
+            )
+            
+            logger.info(f"Successfully deleted question {question_id} vectors from questions index")
             
         except Exception as e:
             logger.error(f"Failed to delete question vectors: {e}", exc_info=True)

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     PINECONE_ENVIRONMENT: str
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "docbrain")
     PINECONE_SUMMARY_INDEX_NAME: str = os.getenv("PINECONE_SUMMARY_INDEX_NAME", "summary")
+    PINECONE_QUESTIONS_INDEX_NAME: str = os.getenv("PINECONE_QUESTIONS_INDEX_NAME", "questions")
     RETRIEVER_TYPE: str = os.getenv("RETRIEVER_TYPE", "pinecone")
 
     # LLM

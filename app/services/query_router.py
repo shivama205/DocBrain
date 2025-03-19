@@ -11,6 +11,7 @@ import json
 # Replace direct Gemini import with our LLM factory
 from app.services.llm.factory import LLMFactory, Message, Role, CompletionOptions
 from app.core.prompts import get_prompt, register_prompt
+from app.db.models.question import AnswerType
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,17 @@ class QueryRouter:
         try:
             logger.info(f"Routing and dispatching query: '{query}'")
             
+            # First, check if we have a direct answer in the questions index
+            kb_id = metadata_filter.get("knowledge_base_id") if metadata_filter else None
+            
+            # Only search questions if we're not forcing a specific service
+            if not force_service:
+                direct_answer = await self._check_questions_index(query, kb_id)
+                if direct_answer:
+                    logger.info("Found direct answer in questions index")
+                    return direct_answer
+            
+            # Continue with the regular routing flow if no direct answer was found
             # Use the specified service if provided
             if force_service:
                 service = force_service.lower()
@@ -157,6 +169,145 @@ class QueryRouter:
                 },
                 "error": str(e)
             }
+    
+    async def _check_questions_index(self, query: str, knowledge_base_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Check if there's a direct answer in the questions index.
+        
+        Args:
+            query: The user query
+            knowledge_base_id: Optional ID of the knowledge base to search in
+            
+        Returns:
+            Response with the direct answer found in questions index, None otherwise
+        """
+        try:
+            logger.info(f"=== QUESTIONS INDEX CHECK ===")
+            logger.info(f"Checking questions index for direct answer to: '{query}'")
+            
+            # Higher threshold for questions to ensure high quality matches
+            QUESTIONS_SIMILARITY_THRESHOLD = 0.75
+            logger.info(f"Using similarity threshold: {QUESTIONS_SIMILARITY_THRESHOLD}")
+            
+            if not knowledge_base_id:
+                logger.info("No knowledge base ID provided, cannot search questions index")
+                return None
+                
+            # Get the questions vector store
+            logger.info(f"Getting vector store for questions index: {settings.PINECONE_QUESTIONS_INDEX_NAME}")
+            questions_vector_store = get_vector_store(
+                store_type="pinecone", 
+                index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
+            )
+            
+            # Log the search parameters
+            logger.info(f"Searching questions with: query='{query}', knowledge_base_id='{knowledge_base_id}', threshold={QUESTIONS_SIMILARITY_THRESHOLD}")
+            
+            # Search for similar questions in the knowledge base namespace
+            results = await questions_vector_store.search_similar(
+                query=query,
+                knowledge_base_id=knowledge_base_id,  # Use knowledge_base_id as namespace
+                limit=1,  # We only need the top result
+                similarity_threshold=QUESTIONS_SIMILARITY_THRESHOLD
+            )
+            
+            # If we have a match
+            if results and len(results) > 0:
+                top_match = results[0]
+                match_score = top_match.get('score', 0)
+                
+                logger.info(f"Found question match with score {match_score} (threshold: {QUESTIONS_SIMILARITY_THRESHOLD})")
+                
+                # Only use if the match is above our threshold
+                if match_score >= QUESTIONS_SIMILARITY_THRESHOLD:
+                    content = top_match.get('content', '')
+                    metadata = top_match.get('metadata', {})
+                    logger.info(f"Match content: {content[:100]}...")
+                    
+                    # Parse the formatted content to extract question and answer
+                    parts = content.split('\nAnswer: ')
+                    if len(parts) != 2:
+                        logger.warning(f"Could not parse question/answer from content: {content}")
+                        return None
+                        
+                    matched_question = parts[0].replace('Question: ', '')
+                    matched_answer = parts[1]
+                    
+                    logger.info(f"Matched question: {matched_question}")
+                    logger.info(f"Matched answer preview: {matched_answer[:100]}...")
+                    
+                    # Use LLM to generate the final answer based on the matched question and answer
+                    logger.info("Generating answer with LLM using matched question and answer")
+                    
+                    # Create prompt for the LLM
+                    prompt = f"""You are answering a user question based on an existing similar question and answer pair.
+
+User Question: {query}
+
+Similar Question: {matched_question}
+
+Answer to Similar Question: {matched_answer}
+
+Please provide an accurate, helpful answer to the user's question based on this information.
+If the user's question is substantially different, just use the provided answer as context to help frame your response.
+"""
+                    
+                    # Create message for LLM
+                    messages = [
+                        Message(role=Role.USER, content=prompt)
+                    ]
+                    
+                    # Set completion options
+                    options = CompletionOptions(
+                        temperature=0.3,  # Lower temperature for more accurate response
+                        max_tokens=500
+                    )
+                    
+                    # Get LLM response
+                    llm_response = await LLMFactory.complete(
+                        messages=messages,
+                        options=options
+                    )
+                    
+                    final_answer = llm_response.content.strip()
+                    logger.info(f"LLM generated answer: {final_answer[:100]}...")
+                    
+                    # Prepare response in the same format as other services
+                    response = {
+                        "query": query,
+                        "answer": final_answer,
+                        "sources": [{
+                            "content": matched_question,
+                            "metadata": {
+                                "question_id": metadata.get('question_id', ''),
+                                "knowledge_base_id": knowledge_base_id,
+                                "score": match_score
+                            }
+                        }],
+                        "service": "questions",
+                        "routing_info": {
+                            "service": "questions",
+                            "confidence": match_score,
+                            "reasoning": f"Found direct answer in questions index with confidence {match_score:.2f}",
+                            "fallback": False
+                        }
+                    }
+                    logger.info("Returning LLM-generated answer from questions index match")
+                    logger.info(f"=== END QUESTIONS INDEX CHECK ===")
+                    return response
+                else:
+                    logger.info(f"Match score {match_score} below threshold {QUESTIONS_SIMILARITY_THRESHOLD}, not using")
+            else:
+                logger.info("No matches found in questions index")
+            
+            logger.info("No suitable direct answer found in questions index")
+            logger.info(f"=== END QUESTIONS INDEX CHECK ===")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error checking questions index: {e}", exc_info=True)
+            logger.info(f"=== END QUESTIONS INDEX CHECK (ERROR) ===")
+            return None
     
     async def analyze_query(self, query: str) -> Dict[str, Any]:
         """
