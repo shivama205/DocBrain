@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 # Create SQLAlchemy engine with connection pooling
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=3,
-    max_overflow=6,
-    pool_timeout=30,
+    pool_size=50,
+    max_overflow=60,
+    pool_timeout=10,
     pool_recycle=1800,  # Recycle connections after 30 minutes
     pool_pre_ping=True,  # Enable connection health checks
 )
