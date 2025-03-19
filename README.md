@@ -24,7 +24,7 @@ A privacy-focused, modular Retrieval-Augmented Generation framework for enterpri
 | **Vector Storage** | Currently using Pinecone for development, with plans to support custom vector DBs in the future |
 | **Privacy First**    | No data leaves your environment - self-contained processing pipeline       |
 | **Multiple LLM Provider Support** | Factory pattern implementation supporting Google Gemini, OpenAI, and other providers |
-| **Query Router** | Intelligent routing between different retrieval methods based on query type |
+| **Query Router** | Advanced query routing with complex question handling for FAQs, feature requirements, and specialized use cases |
 | **Table Augmented Generation (TAG)** | Enhanced reasoning over tabular data (CSV, Excel) with automatic SQL generation |
 | **Role-Based Access Control** | Comprehensive permission system with Admin, Owner, and User roles |
 | **Knowledge Base Sharing** | Secure sharing of knowledge bases between users with granular controls |
@@ -122,10 +122,14 @@ To use the complete system, set up both this backend and the frontend repository
 
 The Query Router intelligently analyzes incoming queries and routes them to the most appropriate service for processing:
 
-- **Intelligent Query Analysis**: Uses LLM-based classification to determine whether a query requires structured data retrieval (TAG) or traditional document retrieval (RAG)
+- **Advanced Question Processing**: Supports complex, multi-part questions with automatic decomposition and contextual awareness
+- **Intelligent Classification**: Categorizes queries as factual, analytical, or hypothetical for optimized processing
 - **Query Type Detection**: Automatically identifies queries about statistical information, database content, or tabular data
-- **Confidence Scoring**: Provides confidence scores with each routing decision
-- **Fallback Mechanisms**: Defaults to RAG for unclear queries, ensuring consistent responses
+- **Confidence Scoring**: Provides confidence scores with each routing decision for transparent retrieval logic
+- **Specialized Use Cases**: Optimized handling for FAQs, feature requirements, technical documentation, and other enterprise needs
+- **Follow-up Handling**: Maintains context for conversational queries and follow-up questions
+- **Clarification Mechanisms**: Identifies ambiguous queries and requests clarification when needed
+- **Fallback Strategy**: Defaults to the most appropriate retrieval method for unclear queries, ensuring consistent responses
 
 ### Table Augmented Generation (TAG)
 
@@ -167,7 +171,7 @@ DocBrain has an ambitious development roadmap focused on enhancing capabilities 
 
 We've recently completed implementation of:
 - ✅ **Table Augmented Generation (TAG)** - SQL-based tabular data querying
-- ✅ **Query Router** - Intelligent routing between retrieval methods
+- ✅ **Enhanced Query Router** - Intelligent routing with advanced question handling for FAQs and specialized use cases
 - ✅ **Multiple LLM Provider Support** - Factory pattern for integrating various LLM providers
 - ✅ **Role-Based Access Control** - Comprehensive permission system
 - ✅ **Knowledge Base Sharing** - Secure sharing between users

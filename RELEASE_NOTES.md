@@ -2,6 +2,30 @@
 
 This document provides detailed information about changes and improvements in each release of DocBrain.
 
+## v1.2.0 (Upcoming Release)
+
+**Enhanced Query Routing System**
+
+### Advanced Query Processing
+- Redesigned query routing with integrated question handling for improved accuracy
+- Enhanced support for enterprise use cases including FAQs, feature requirements, and technical documentation
+- Implemented intelligent classification for query optimization and result quality
+- Added contextual awareness for follow-up questions and conversational interactions
+- Improved handling of ambiguous queries with clarification mechanisms
+
+### Query Routing Enhancements
+- Increased classification accuracy with fine-tuned routing logic
+- Implemented confidence scoring with configurable thresholds for transparency
+- Added specialized processing paths for different query types (factual, analytical, hypothetical)
+- Created preprocessing pipeline for query enhancement and reformulation
+- Improved fallback mechanisms for edge cases to ensure consistent responses
+
+### Performance Improvements
+- Reduced latency in query classification and routing decision-making
+- Optimized vector retrieval for specific query patterns and use cases
+- Enhanced caching for frequently accessed information patterns
+- Improved overall system responsiveness for complex information needs
+
 ## v1.1.0 (Current Release)
 
 **Role-Based Access Control & Knowledge Base Sharing**
