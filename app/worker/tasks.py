@@ -13,7 +13,9 @@ from app.services.query_router import get_query_router
 from app.core.config import settings
 from app.repositories.document_repository import DocumentRepository
 from app.repositories.message_repository import MessageRepository
+from app.repositories.question_repository import QuestionRepository
 from app.schemas.document import DocumentResponse
+from app.schemas.question import QuestionResponse
 from app.services.rag_service import get_rag_service
 from app.services.llm.factory import LLMFactory, Message as LLMMessage, Role, CompletionOptions
 from app.core.prompts import get_prompt, register_prompt
@@ -35,6 +37,7 @@ Summary:""")
 
 DOCUMENT_REPO = DocumentRepository()
 MESSAGE_REPO = MessageRepository()
+QUESTION_REPO = QuestionRepository()
 RAG_SERVICE = get_rag_service()
 
 @shared_task(
@@ -406,3 +409,127 @@ def initiate_rag_retrieval(
             raise
 
     return asyncio.run(_retrieve(get_db().__next__()))
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True
+)
+def initiate_question_ingestion(self, question_id: str) -> None:
+    """
+    Process question and add it to the vector store.
+    
+    This task is triggered when a question is created or updated.
+    It performs the following steps:
+    1. Retrieve the question from the database
+    2. Update question status to INGESTING
+    3. Format the question and answer
+    4. Store in vector store
+    5. Update question status to COMPLETED
+    """
+    logger.info(f"Starting question ingestion task for question_id: {question_id}")
+    
+    async def _ingest(db: Session):
+        try:
+            # Get question
+            logger.info(f"Fetching question {question_id} from repository")
+            question: Optional[QuestionResponse] = await QUESTION_REPO.get_by_id(question_id, db)
+            if not question:
+                logger.error(f"Question {question_id} not found")
+                raise ValueError(f"Question {question_id} not found")
+            
+            logger.info(f"Processing question: {question.question} (type: {question.answer_type})")
+            
+            # Update status to ingesting
+            logger.info(f"Updating question {question_id} status to INGESTING")
+            await QUESTION_REPO.set_ingesting(question_id, db)
+            
+            # Prepare metadata
+            metadata = {
+                "question_id": question_id,
+                "knowledge_base_id": question.knowledge_base_id,
+                "answer_type": question.answer_type,
+                "user_id": question.user_id,
+            }
+            
+            # Format content for vector store
+            formatted_content = f"Question: {question.question}\nAnswer: {question.answer}"
+            
+            try:
+                # Get vector store instance
+                vector_store = get_vector_store()
+                
+                # Store in vector store with namespace for questions
+                await vector_store.add_texts(
+                    texts=[formatted_content],
+                    metadatas=[metadata],
+                    ids=[f"question:{question_id}"],
+                    collection_name=f"kb_{question.knowledge_base_id}_questions"
+                )
+                
+                # Update status to completed
+                logger.info(f"Question {question_id} successfully ingested")
+                await QUESTION_REPO.set_completed(question_id, db)
+                
+            except Exception as e:
+                # Update status to failed
+                logger.error(f"Failed to ingest question {question_id}: {e}", exc_info=True)
+                await QUESTION_REPO.set_failed(question_id, db)
+                raise
+                
+        except Exception as e:
+            logger.error(f"Failed to ingest question: {e}", exc_info=True)
+            raise
+    
+    loop = asyncio.get_event_loop()
+    try:
+        for db in get_db():
+            loop.run_until_complete(_ingest(db))
+            break
+    except Exception as e:
+        logger.error(f"Error in question ingestion: {e}", exc_info=True)
+        self.retry(exc=e)
+
+@shared_task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=30,
+    autoretry_for=(Exception,),
+    retry_backoff=True
+)
+def initiate_question_vector_deletion(self, question_id: str, knowledge_base_id: str) -> None:
+    """
+    Delete question vectors from vector store.
+    
+    This task is triggered when a question is deleted.
+    """
+    logger.info(f"Starting question vector deletion task for question_id: {question_id}")
+    
+    async def _delete_vectors(db: Session):
+        try:
+            # Get vector store instance
+            vector_store = get_vector_store()
+            
+            # Delete from vector store
+            result = await vector_store.delete(
+                ids=[f"question:{question_id}"],
+                collection_name=f"kb_{knowledge_base_id}_questions"
+            )
+            
+            logger.info(f"Successfully deleted question {question_id} vectors: {result}")
+            
+        except Exception as e:
+            logger.error(f"Failed to delete question vectors: {e}", exc_info=True)
+            raise
+    
+    loop = asyncio.get_event_loop()
+    try:
+        for db in get_db():
+            loop.run_until_complete(_delete_vectors(db))
+            break
+    except Exception as e:
+        logger.error(f"Error in question vector deletion: {e}", exc_info=True)
+        self.retry(exc=e)

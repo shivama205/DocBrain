@@ -1,8 +1,10 @@
 from typing import Annotated, List
-from fastapi import APIRouter, Body, Depends, Form, UploadFile, File, Path
+from fastapi import APIRouter, Body, Depends, UploadFile, File, Path, HTTPException
 from fastapi.responses import JSONResponse
 from functools import lru_cache
 from sqlalchemy.orm import Session
+import csv
+import io
 
 from app.schemas.knowledge_base import (
     KnowledgeBaseCreate,
@@ -14,11 +16,14 @@ from app.schemas.knowledge_base import (
     SharedUserInfo
 )
 from app.schemas.document import DocumentUpdate, DocumentResponse, DocumentUpload
+from app.schemas.question import QuestionResponse, QuestionCreate, QuestionUpdate
 from app.api.deps import get_current_user
 from app.schemas.user import UserResponse
 from app.services.knowledge_base_service import KnowledgeBaseService, LocalFileStorage
 from app.services.document_service import DocumentService
+from app.services.question_service import QuestionService
 from app.repositories.document_repository import DocumentRepository
+from app.repositories.question_repository import QuestionRepository
 from app.services.rag.vector_store import VectorStore, get_vector_store
 from app.repositories.knowledge_base_repository import KnowledgeBaseRepository
 from app.core.config import settings
@@ -43,6 +48,9 @@ def get_knowledge_base_repository() -> KnowledgeBaseRepository:
 def get_document_repository() -> DocumentRepository:
     """Get document repository instance"""
     return DocumentRepository()
+
+def get_question_repository() -> QuestionRepository:
+    return QuestionRepository()
 
 def get_knowledge_base_service(
     repository: KnowledgeBaseRepository = Depends(get_knowledge_base_repository),
@@ -72,6 +80,20 @@ def get_document_service(
         vector_store=vector_store,
         knowledge_base_service=kb_service,
         file_storage=file_storage,
+        celery_app=celery_app,
+        db=db
+    )
+
+def get_question_service(
+    kb_service: KnowledgeBaseService = Depends(get_knowledge_base_service),
+    question_repository: QuestionRepository = Depends(get_question_repository),
+    vector_store: VectorStore = Depends(lambda: get_vector_store()),
+    db: Session = Depends(get_db)
+) -> QuestionService:
+    return QuestionService(
+        question_repository=question_repository,
+        vector_store=vector_store,
+        knowledge_base_service=kb_service,
         celery_app=celery_app,
         db=db
     )
@@ -242,4 +264,120 @@ async def retry_document(
     This endpoint allows you to retry processing a document that failed during the initial ingestion.
     It can only be used on documents with a FAILED status.
     """
-    return await doc_service.retry_failed_document(kb_id, doc_id, current_user) 
+    return await doc_service.retry_failed_document(kb_id, doc_id, current_user)
+
+# Question endpoints
+
+@router.get("/{kb_id}/questions", response_model=List[QuestionResponse])
+async def list_questions(
+    kb_id: str,
+    skip: int = 0,
+    limit: int = 100,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """List all questions for a knowledge base"""
+    return await question_service.list_questions(kb_id, current_user, skip, limit)
+
+@router.get("/{kb_id}/questions/{question_id}", response_model=QuestionResponse)
+async def get_question(
+    kb_id: str,
+    question_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Get a specific question by ID"""
+    return await question_service.get_question(question_id, current_user)
+
+@router.post("/{kb_id}/questions", response_model=QuestionResponse)
+async def create_question(
+    kb_id: str,
+    question: QuestionCreate,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Create a new question in a knowledge base"""
+    return await question_service.create_question(kb_id, question, current_user)
+
+@router.put("/{kb_id}/questions/{question_id}", response_model=QuestionResponse)
+async def update_question(
+    kb_id: str,
+    question_id: str,
+    question_update: QuestionUpdate,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Update a question"""
+    return await question_service.update_question(question_id, question_update, current_user)
+
+@router.delete("/{kb_id}/questions/{question_id}")
+async def delete_question(
+    kb_id: str,
+    question_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Delete a question"""
+    await question_service.delete_question(question_id, current_user)
+    return {"message": "Question deleted successfully"}
+
+@router.get("/{kb_id}/questions/{question_id}/status")
+async def get_question_status(
+    kb_id: str,
+    question_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Get the status of a question"""
+    return await question_service.get_question_status(question_id, current_user)
+
+@router.post("/{kb_id}/questions/bulk-upload")
+async def bulk_upload_questions(
+    kb_id: str,
+    file: UploadFile = File(...),
+    current_user: UserResponse = Depends(get_current_user),
+    question_service: QuestionService = Depends(get_question_service)
+):
+    """Bulk upload questions from a CSV file"""
+    # Check file type
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    
+    # Read CSV file
+    contents = await file.read()
+    csv_data = contents.decode('utf-8')
+    csv_reader = csv.DictReader(io.StringIO(csv_data))
+    
+    # Validate required fields
+    required_fields = ['question', 'answer', 'answer_type']
+    if not all(field in csv_reader.fieldnames for field in required_fields):
+        raise HTTPException(
+            status_code=400, 
+            detail=f"CSV must contain the following columns: {', '.join(required_fields)}"
+        )
+    
+    # Process questions
+    results = {
+        "success": 0,
+        "failed": 0,
+        "errors": []
+    }
+    
+    for row_idx, row in enumerate(csv_reader, start=2):  # Start at 2 to account for header row
+        try:
+            # Create question model
+            question_data = QuestionCreate(
+                question=row['question'].strip(),
+                answer=row['answer'].strip(),
+                answer_type=row['answer_type'].strip().upper()
+            )
+            
+            # Create question
+            await question_service.create_question(kb_id, question_data, current_user)
+            results["success"] += 1
+            
+        except Exception as e:
+            results["failed"] += 1
+            results["errors"].append(f"Row {row_idx}: {str(e)}")
+    
+    return results 
