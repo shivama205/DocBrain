@@ -12,12 +12,20 @@ class MessageType(str, Enum):
 
 
 class MessageSource(BaseModel):
-    """Source document information"""
+    """Source document or question information"""
     score: float = Field(..., description="Relevance score of the source")
-    document_id: str = Field(..., description="ID of the source document")
-    title: str = Field(..., description="Title of the source document")
-    content: str = Field(..., description="Relevant content from the document")
-    chunk_index: int = Field(..., description="Index of the chunk in the document")
+    content: str = Field(..., description="Relevant content from the document or question")
+    
+    # Document-specific fields (optional for questions)
+    document_id: Optional[str] = Field(None, description="ID of the source document")
+    title: Optional[str] = Field(None, description="Title of the source document")
+    chunk_index: Optional[int] = Field(None, description="Index of the chunk in the document")
+    
+    # Question-specific fields (optional for documents)
+    question_id: Optional[str] = Field(None, description="ID of the source question")
+    question: Optional[str] = Field(None, description="The question that was matched")
+    answer: Optional[str] = Field(None, description="The answer for the matched question")
+    answer_type: Optional[str] = Field(None, description="Type of answer (DIRECT, SQL_QUERY, etc.)")
 
 class MessageBase(BaseModel):
     """Base message attributes"""

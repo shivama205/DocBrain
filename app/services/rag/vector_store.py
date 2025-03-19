@@ -330,23 +330,44 @@ class PineconeVectorStore(VectorStore):
                         # Get metadata safely
                         metadata = match.metadata or {}
                         
-                        # Build chunk with required fields
-                        chunk = {
-                            'score': float(match.score),
-                            'document_id': str(metadata.get('document_id', '')),
-                            'content': str(metadata.get('content', '')),
-                            'chunk_index': int(metadata.get('chunk_index', 0)),
-                            'title': str(metadata.get('doc_title', 'Untitled')),
-                            'metadata': {
-                                'document_id': str(metadata.get('document_id', '')),
-                                'chunk_index': int(metadata.get('chunk_index', 0)),
-                                'chunk_size': str(metadata.get('chunk_size', '')),
-                                'doc_title': str(metadata.get('doc_title', '')),
-                                'doc_type': str(metadata.get('doc_type', '')),
-                                'section': str(metadata.get('section', '')),
-                                'path': metadata.get('path', '').split(',') if metadata.get('path') else []
+                        # Check if this is a question result (based on metadata fields)
+                        is_question = 'question_id' in metadata and 'question' in metadata
+                        
+                        if is_question:
+                            # This is a question result, use question-specific fields
+                            chunk = {
+                                'score': float(match.score),
+                                'content': str(metadata.get('content', '')),
+                                'question_id': str(metadata.get('question_id', '')),
+                                'question': str(metadata.get('question', '')),
+                                'answer': str(metadata.get('answer', '')),
+                                'answer_type': str(metadata.get('answer_type', 'DIRECT')),
+                                'metadata': {
+                                    'question_id': str(metadata.get('question_id', '')),
+                                    'knowledge_base_id': str(metadata.get('knowledge_base_id', '')),
+                                    'answer': str(metadata.get('answer', '')),
+                                    'answer_type': str(metadata.get('answer_type', 'DIRECT')),
+                                    'score': float(match.score)
+                                }
                             }
-                        }
+                        else:
+                            # This is a document chunk, use document-specific fields
+                            chunk = {
+                                'score': float(match.score),
+                                'document_id': str(metadata.get('document_id', '')),
+                                'content': str(metadata.get('content', '')),
+                                'chunk_index': int(metadata.get('chunk_index', 0)),
+                                'title': str(metadata.get('doc_title', 'Untitled')),
+                                'metadata': {
+                                    'document_id': str(metadata.get('document_id', '')),
+                                    'chunk_index': int(metadata.get('chunk_index', 0)),
+                                    'chunk_size': str(metadata.get('chunk_size', '')),
+                                    'doc_title': str(metadata.get('doc_title', '')),
+                                    'doc_type': str(metadata.get('doc_type', '')),
+                                    'section': str(metadata.get('section', '')),
+                                    'path': metadata.get('path', '').split(',') if metadata.get('path') else []
+                                }
+                            }
                         
                         # Only skip if absolutely necessary
                         if not chunk['content']:
@@ -376,9 +397,18 @@ class PineconeVectorStore(VectorStore):
                 top_chunk = final_chunks[0]
                 logger.info("Top chunk preview:")
                 logger.info(f"Score: {top_chunk['score']:.3f}")
-                logger.info(f"Document ID: {top_chunk['document_id']}")
-                logger.info(f"Title: {top_chunk['title']}")
-                logger.info(f"Content: {top_chunk['content'][:200]}...")
+                
+                # Check if this is a question result
+                if 'question_id' in top_chunk:
+                    # Question result
+                    logger.info(f"Question ID: {top_chunk['question_id']}")
+                    logger.info(f"Question: {top_chunk['question']}")
+                    logger.info(f"Content: {top_chunk['content'][:200]}...")
+                else:
+                    # Document result
+                    logger.info(f"Document ID: {top_chunk['document_id']}")
+                    logger.info(f"Title: {top_chunk['title']}")
+                    logger.info(f"Content: {top_chunk['content'][:200]}...")
             
             return final_chunks
             
@@ -629,6 +659,73 @@ class PineconeVectorStore(VectorStore):
         except Exception as e:
             logger.error(f"Error searching chunks: {e}", exc_info=True)
             return []
+
+    async def add_questions(self, texts: List[str], metadatas: List[Dict], ids: List[str], collection_name: str) -> None:
+        """Add questions with metadata to Pinecone - specialized for question ingestion
+        
+        Args:
+            texts: List of question + answer text content
+            metadatas: List of metadata dictionaries with question-specific fields
+            ids: List of unique identifiers
+            collection_name: Name of collection (used as namespace)
+        """
+        try:
+            logger.info(f"Adding {len(texts)} questions to collection {collection_name}")
+            
+            # Process each question for storage
+            vectors = []
+            for i, (text, metadata, id) in enumerate(zip(texts, metadatas, ids)):
+                # Get embedding
+                logger.info(f"Generating embedding for question {i+1}/{len(texts)} (id: {id})")
+                embedding = await self._get_embedding(text)
+                logger.info(f"Generated embedding with dimension {len(embedding)}")
+                
+                # Clean up metadata - only include question-specific fields
+                # No document-specific fields like chunk_index, doc_title, etc.
+                pinecone_metadata = {
+                    'content': text,
+                    'question_id': metadata.get('question_id', ''),
+                    'knowledge_base_id': metadata.get('knowledge_base_id', ''),
+                    'answer_type': metadata.get('answer_type', ''),
+                    'question': metadata.get('question', ''),
+                    'answer': metadata.get('answer', ''),
+                    'user_id': metadata.get('user_id', '')
+                }
+                
+                logger.info(f"Prepared metadata for question: {pinecone_metadata.keys()}")
+                
+                # Create vector record with unique ID
+                vectors.append({
+                    'id': id,
+                    'values': [float(x) for x in embedding],
+                    'metadata': pinecone_metadata
+                })
+                
+            # Upsert vectors in batches of 100
+            batch_size = 100
+            total_batches = (len(vectors) + batch_size - 1) // batch_size
+            
+            for i in range(0, len(vectors), batch_size):
+                batch = vectors[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                logger.info(f"Upserting batch {batch_num}/{total_batches} ({len(batch)} vectors)")
+                
+                try:
+                    # Use collection_name as namespace
+                    self.index.upsert(vectors=batch, namespace=collection_name)
+                    logger.info(f"Successfully upserted batch {batch_num}")
+                except Exception as batch_error:
+                    logger.error(f"Failed to upsert batch {batch_num}: {batch_error}")
+                    # Log the first vector in the failing batch for debugging
+                    if batch:
+                        logger.info(f"Sample vector from failing batch: {batch[0]}")
+                    raise
+                
+            logger.info(f"Successfully added {len(texts)} questions to Pinecone for collection {collection_name}")
+            
+        except Exception as e:
+            logger.error(f"Failed to add questions to Pinecone: {e}", exc_info=True)
+            raise
 
 
 class VectorStoreFactory:

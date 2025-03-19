@@ -204,12 +204,16 @@ class QueryRouter:
             logger.info(f"Searching questions with: query='{query}', knowledge_base_id='{knowledge_base_id}', threshold={QUESTIONS_SIMILARITY_THRESHOLD}")
             
             # Search for similar questions in the knowledge base namespace
-            results = await questions_vector_store.search_similar(
-                query=query,
-                knowledge_base_id=knowledge_base_id,  # Use knowledge_base_id as namespace
-                limit=1,  # We only need the top result
-                similarity_threshold=QUESTIONS_SIMILARITY_THRESHOLD
-            )
+            try:
+                results = await questions_vector_store.search_similar(
+                    query=query,
+                    knowledge_base_id=knowledge_base_id,  # Use knowledge_base_id as namespace
+                    limit=1,  # We only need the top result
+                    similarity_threshold=QUESTIONS_SIMILARITY_THRESHOLD
+                )
+            except Exception as e:
+                logger.error(f"Error searching questions index: {e}", exc_info=True)
+                return None
             
             # If we have a match
             if results and len(results) > 0:
@@ -224,14 +228,20 @@ class QueryRouter:
                     metadata = top_match.get('metadata', {})
                     logger.info(f"Match content: {content[:100]}...")
                     
-                    # Parse the formatted content to extract question and answer
-                    parts = content.split('\nAnswer: ')
-                    if len(parts) != 2:
-                        logger.warning(f"Could not parse question/answer from content: {content}")
-                        return None
-                        
-                    matched_question = parts[0].replace('Question: ', '')
-                    matched_answer = parts[1]
+                    # Get question and answer from metadata if available
+                    matched_question = metadata.get('question', '')
+                    matched_answer = metadata.get('answer', '')
+                    
+                    # If not in metadata, try to parse from content as fallback
+                    if not matched_question or not matched_answer:
+                        logger.info("Question/answer not found in metadata, trying to parse from content")
+                        parts = content.split('\nAnswer: ')
+                        if len(parts) == 2:
+                            matched_question = parts[0].replace('Question: ', '')
+                            matched_answer = parts[1]
+                        else:
+                            logger.warning(f"Could not parse question/answer from content: {content}")
+                            return None
                     
                     logger.info(f"Matched question: {matched_question}")
                     logger.info(f"Matched answer preview: {matched_answer[:100]}...")
@@ -277,11 +287,21 @@ If the user's question is substantially different, just use the provided answer 
                         "query": query,
                         "answer": final_answer,
                         "sources": [{
+                            # Content is the matched question for display
                             "content": matched_question,
+                            # Add question-specific metadata using the updated schema
+                            "question_id": metadata.get('question_id', ''),
+                            "question": matched_question,
+                            "answer": matched_answer,  # Include the original answer
+                            "answer_type": metadata.get('answer_type', 'DIRECT'),
+                            "score": match_score,
+                            # We no longer need these document-specific fields
+                            # but include dummy values for backward compatibility if needed
                             "metadata": {
                                 "question_id": metadata.get('question_id', ''),
                                 "knowledge_base_id": knowledge_base_id,
-                                "score": match_score
+                                "score": match_score,
+                                "answer": matched_answer  # Include answer in metadata too
                             }
                         }],
                         "service": "questions",

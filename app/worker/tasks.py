@@ -342,8 +342,42 @@ def initiate_rag_retrieval(
                     else:
                         source["content"] = source.get("text", "No content available")
                 
-                if "chunk_index" not in source:
-                    source["chunk_index"] = i
+                # Handle the source differently based on the service
+                if service == "questions":
+                    # For questions service, use question-specific fields
+                    if "question_id" not in source:
+                        metadata = source.get("metadata", {})
+                        source["question_id"] = metadata.get("question_id", f"question_{i}")
+                    
+                    if "question" not in source:
+                        source["question"] = source.get("content", "")
+                    
+                    # Add answer field from metadata if not present
+                    if "answer" not in source:
+                        metadata = source.get("metadata", {})
+                        source["answer"] = metadata.get("answer", "")
+                    
+                    if "answer_type" not in source:
+                        metadata = source.get("metadata", {})
+                        source["answer_type"] = metadata.get("answer_type", "DIRECT")
+                        
+                    # Make document_id optional
+                    if "document_id" not in source:
+                        source["document_id"] = source.get("question_id", f"question_{i}")
+                else:
+                    # For document-based services (RAG/TAG)
+                    if "chunk_index" not in source:
+                        source["chunk_index"] = i
+                    
+                    # Ensure document_id field is present
+                    if "document_id" not in source:
+                        metadata = source.get("metadata", {})
+                        source["document_id"] = metadata.get("document_id", f"doc_{i}")
+                    
+                    # Ensure title field is present
+                    if "title" not in source:
+                        metadata = source.get("metadata", {})
+                        source["title"] = metadata.get("doc_title", "Untitled Document")
                 
                 # Add routing information to each source
                 source["routing"] = {
@@ -431,11 +465,13 @@ def initiate_question_ingestion(self, question_id: str) -> None:
                     index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
                 )
                 
-                # Create metadata with all relevant fields
+                # Create metadata with question-specific fields only
                 metadata = {
                     "question_id": question_id,
                     "knowledge_base_id": question.knowledge_base_id,
                     "answer_type": str(question.answer_type),
+                    "question": question.question,  # Store the actual question for retrieval
+                    "answer": question.answer,      # Store the answer in metadata as well
                     "user_id": str(question.user_id),
                 }
                 
@@ -443,7 +479,8 @@ def initiate_question_ingestion(self, question_id: str) -> None:
                 formatted_content = f"Question: {question.question}\nAnswer: {question.answer}"
                 
                 # Store in vector store using knowledge_base_id as namespace
-                await vector_store.add_texts(
+                # Use the specialized add_questions method for questions
+                await vector_store.add_questions(
                     texts=[formatted_content],
                     metadatas=[metadata],
                     ids=[f"question:{question_id}"],
