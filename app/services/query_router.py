@@ -186,7 +186,7 @@ class QueryRouter:
             logger.info(f"Checking questions index for direct answer to: '{query}'")
             
             # Higher threshold for questions to ensure high quality matches
-            QUESTIONS_SIMILARITY_THRESHOLD = 0.75
+            QUESTIONS_SIMILARITY_THRESHOLD = 0.5
             logger.info(f"Using similarity threshold: {QUESTIONS_SIMILARITY_THRESHOLD}")
             
             if not knowledge_base_id:
