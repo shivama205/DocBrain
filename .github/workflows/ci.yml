@@ -46,8 +46,8 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements-test.txt
 
-      - name: Run tests with coverage
-        run: pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+      - name: Run tests
+        run: pytest tests/ -v
         env:
           ENVIRONMENT: test
           SECRET_KEY: ci-test-secret-key
@@ -56,10 +56,3 @@ jobs:
           PINECONE_API_KEY: test
           PINECONE_ENVIRONMENT: test
           WHITELISTED_EMAILS: test@example.com
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-report
-          path: coverage.xml
