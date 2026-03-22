@@ -12,15 +12,15 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))  # 24 hours
 
     # Email Settings
-    SENDGRID_API_KEY: str
-    FROM_EMAIL: EmailStr
+    SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "noreply@example.com")
 
     # Vector Store
     PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
-    PINECONE_ENVIRONMENT: str
+    PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "")
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "docbrain")
     PINECONE_SUMMARY_INDEX_NAME: str = os.getenv("PINECONE_SUMMARY_INDEX_NAME", "summary")
     PINECONE_QUESTIONS_INDEX_NAME: str = os.getenv("PINECONE_QUESTIONS_INDEX_NAME", "questions")
@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Test Emails
-    WHITELISTED_EMAILS: str
+    WHITELISTED_EMAILS: str = os.getenv("WHITELISTED_EMAILS", "")
 
     # RAG
     RAG_TOP_K: int = 3
@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     @property
     def WHITELISTED_EMAIL_LIST(self) -> List[str]:
         return [email.strip() for email in self.WHITELISTED_EMAILS.split(",")]
+
+    # Rate Limiting
+    RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
     # File Upload
     MAX_FILE_SIZE_MB: int = 10
@@ -65,6 +68,13 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
     # CORS
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+
+    @property
+    def CORS_ORIGIN_LIST(self) -> List[str]:
+        """Parse comma-separated CORS origins."""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
 
     # Storage

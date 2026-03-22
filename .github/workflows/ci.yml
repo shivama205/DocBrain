@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, develop]
+  pull_request:
+    branches: [main, dev, develop]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install flake8 black isort
+
+      - name: Check formatting with black
+        run: black --check --diff app/ tests/
+
+      - name: Check import ordering with isort
+        run: isort --check-only --diff app/ tests/
+
+      - name: Lint with flake8
+        run: flake8 app/ tests/ --max-line-length 120 --ignore E501,W503,E402
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run tests with coverage
+        run: pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+        env:
+          ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key
+          SENDGRID_API_KEY: test
+          FROM_EMAIL: test@example.com
+          PINECONE_API_KEY: test
+          PINECONE_ENVIRONMENT: test
+          WHITELISTED_EMAILS: test@example.com
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
