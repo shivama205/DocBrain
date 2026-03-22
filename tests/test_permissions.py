@@ -1,10 +1,6 @@
 """Tests for the RBAC permission system."""
-import pytest
-from app.core.permissions import (
-    Permission,
-    ROLE_PERMISSIONS,
-    get_permissions_for_role,
-)
+
+from app.core.permissions import Permission, get_permissions_for_role
 from app.db.models.user import UserRole
 
 

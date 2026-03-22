@@ -1,9 +1,10 @@
 """Tests for Pydantic schemas validation."""
+
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
 from app.db.models.user import UserRole
+from app.schemas.user import UserCreate, UserResponse, UserUpdate
 
 
 class TestUserCreate:

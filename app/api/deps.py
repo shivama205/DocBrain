@@ -1,33 +1,39 @@
-from fastapi import Depends, HTTPException
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
 
+from fastapi import Depends, HTTPException
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.db.database import get_db
 from app.db.models.user import User
-from app.core.config import settings
 from app.schemas.user import UserResponse
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> UserResponse:
+
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> UserResponse:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")
-            
 
-        # get db 
+        # get db
         user = db.query(User).filter(User.id == user_id).first()
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
-            
+
         return UserResponse.model_validate(user)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
 
 def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None) -> str:
     """
@@ -39,11 +45,13 @@ def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None)
         str: JWT access token
     """
     to_encode = {"sub": user_id}
-    
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+        expire = datetime.utcnow() + timedelta(
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+        )
+
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM) 
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

@@ -1,8 +1,9 @@
 """Tests for the rate limiting middleware."""
+
 import time
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from collections import defaultdict
-from unittest.mock import MagicMock, AsyncMock
 
 from app.core.middleware import RateLimitMiddleware
 
@@ -54,7 +55,7 @@ class TestRateLimitMiddleware:
 
         # Should pass through even with rpm=1
         for _ in range(5):
-            response = await mw.dispatch(request, call_next)
+            await mw.dispatch(request, call_next)
         assert call_next.call_count == 5
 
     @pytest.mark.asyncio

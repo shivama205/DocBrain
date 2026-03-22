@@ -1,5 +1,5 @@
 """Tests for database models and enums."""
-import pytest
+
 from app.db.models.knowledge_base import DocumentStatus, DocumentType
 from app.db.models.user import UserRole
 
