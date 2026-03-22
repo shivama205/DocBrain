@@ -1,29 +1,40 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import text
 import logging
 
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 logger = logging.getLogger(__name__)
+
 
 class StorageRepository:
     """
     Repository for storing and retrieving data in the storage database.
     """
+
     @staticmethod
-    async def insert_csv(db: Session, table_name: str, create_table_query: str, columns: list[str], data: list[dict]):
+    async def insert_csv(
+        db: Session,
+        table_name: str,
+        create_table_query: str,
+        columns: list[str],
+        data: list[dict],
+    ):
         """
         Insert CSV data into the storage database.
         """
-        logger.info(f"Inserting CSV data into {table_name} with {len(data)} rows and {len(create_table_query)} columns")
+        logger.info(
+            f"Inserting CSV data into {table_name} with {len(data)} rows and {len(create_table_query)} columns"
+        )
         try:
             # create a table if it doesn't exist
             logger.info(f"Create Table Query: {create_table_query}")
             db.execute(text(create_table_query))
             logger.info(f"Successfully created table {table_name}")
 
-            # insert the data one by one 
+            # insert the data one by one
             for row in data:
-                values_str = ', '.join(["'{}'".format(str(cell)) for cell in row])
-                columns_str = ', '.join(columns)
+                values_str = ", ".join(["'{}'".format(str(cell)) for cell in row])
+                columns_str = ", ".join(columns)
                 INSERT_ROW_QUERY = f"INSERT INTO {table_name} ({columns_str}) VALUES ({values_str})"
                 logger.info(f"Insert Row Query: {INSERT_ROW_QUERY}")
                 db.execute(text(INSERT_ROW_QUERY))
@@ -42,5 +53,3 @@ class StorageRepository:
         except Exception as e:
             logger.error(f"Failed to query data: {e}")
             raise
-        
-        

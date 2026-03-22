@@ -34,4 +34,14 @@ dependencies = [
     "langchain-openai>=0.0.3",
     "tiktoken>=0.5.2",
     "unstructured>=0.11.8",
-] 
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.black]
+line-length = 88
+
+[tool.isort]
+profile = "black"

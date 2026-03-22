@@ -1,13 +1,13 @@
-from typing import List, Optional
 import json
+import logging
+from typing import List, Optional
+
+from sqlalchemy.orm import Session
 
 from app.db.models.message import Message, MessageContentType, MessageStatus
 from app.schemas.message import MessageResponse
-from sqlalchemy.orm import Session
-import logging
 
 logger = logging.getLogger(__name__)
-
 
 
 class MessageRepository:
@@ -35,36 +35,42 @@ class MessageRepository:
         return MessageResponse.model_validate(message)
 
     @staticmethod
-    async def list_by_conversation(conversation_id: str, db: Session) -> List[MessageResponse]:
+    async def list_by_conversation(
+        conversation_id: str, db: Session
+    ) -> List[MessageResponse]:
         """List all messages in a conversation"""
-        messages = db.query(Message).filter(Message.conversation_id == conversation_id).all()
+        messages = (
+            db.query(Message).filter(Message.conversation_id == conversation_id).all()
+        )
         return [MessageResponse.model_validate(message) for message in messages]
 
     @staticmethod
-    async def update_with_sources(message_id: str, content: str, sources: List[dict], db: Session) -> Optional[MessageResponse]:
+    async def update_with_sources(
+        message_id: str, content: str, sources: List[dict], db: Session
+    ) -> Optional[MessageResponse]:
         """Update message with response and sources"""
         update_data = {
             "content": content,
             "sources": json.dumps(sources) if sources is not None else None,
-            "status": "completed"
+            "status": "completed",
         }
         db.query(Message).filter(Message.id == message_id).update(update_data)
         db.commit()
         db.refresh(message_id)
-        return MessageResponse.model_validate(message_id) 
-    
+        return MessageResponse.model_validate(message_id)
+
     @staticmethod
     async def set_processed(
-        message_id: str, 
-        content: str, 
-        content_type: MessageContentType, 
-        sources: List[dict], 
+        message_id: str,
+        content: str,
+        content_type: MessageContentType,
+        sources: List[dict],
         db: Session,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
     ) -> Optional[MessageResponse]:
         """
         Set message as processed
-        
+
         Args:
             message_id: The ID of the message to update
             content: The content of the message
@@ -81,12 +87,12 @@ class MessageRepository:
             message.content_type = content_type
             message.sources = sources
             message.status = MessageStatus.PROCESSED
-            
+
             # Add metadata if provided - store directly as a dictionary
             # SQLAlchemy will handle the JSON serialization
             if metadata:
                 message.message_metadata = metadata
-            
+
             db.commit()
             db.refresh(message)
             return MessageResponse.model_validate(message)
@@ -94,9 +100,11 @@ class MessageRepository:
             db.rollback()
             logger.error(f"Failed to set message as processed: {e}")
             raise
-    
+
     @staticmethod
-    async def set_failed(message_id: str, error_message: str, db: Session) -> Optional[MessageResponse]:
+    async def set_failed(
+        message_id: str, error_message: str, db: Session
+    ) -> Optional[MessageResponse]:
         """Set message as failed"""
         try:
             message = db.query(Message).filter(Message.id == message_id).first()

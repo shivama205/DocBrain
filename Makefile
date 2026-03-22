@@ -22,7 +22,19 @@ worker:
 	sh ./restart_worker.sh
 
 test:
-	pytest
+	pytest tests/ -v
+
+test-cov:
+	pytest tests/ -v --cov=app --cov-report=term-missing
+
+lint:
+	black --check --diff app/ tests/
+	isort --check-only --diff --profile black app/ tests/
+	flake8 app/ tests/ --max-line-length 120 --ignore E501,W503,E402,E203
+
+format:
+	black app/ tests/
+	isort --profile black app/ tests/
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -r {} +

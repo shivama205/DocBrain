@@ -1,19 +1,33 @@
-from sqlalchemy import Column, LargeBinary, String, Text, ForeignKey, DateTime, Integer, Table
+import enum
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-import enum
 
 from app.db.base_class import BaseModel
 
+
 class DocumentStatus(str, enum.Enum):
     """Document processing status"""
+
     PENDING = "PENDING"
     PROCESSING = "PROCESSING"
     PROCESSED = "PROCESSED"
     FAILED = "FAILED"
 
+
 class DocumentType(str, enum.Enum):
     """Document type"""
+
     PDF = "application/pdf"
     JPG = "image/jpeg"
     PNG = "image/png"
@@ -28,10 +42,12 @@ class DocumentType(str, enum.Enum):
     TXT = "text/plain"
     HTML = "text/html"
 
+
 class Document(BaseModel):
     """Document model"""
+
     __tablename__ = "documents"
-    
+
     title = Column(String(500), nullable=False)
     knowledge_base_id = Column(String(255), ForeignKey("knowledge_bases.id"), nullable=False)
     content = Column(LargeBinary, nullable=False)  # Base64 encoded content
@@ -44,7 +60,7 @@ class Document(BaseModel):
     summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     class Config:
         json_schema_extra = {
             "example": {
@@ -57,27 +73,44 @@ class Document(BaseModel):
                 "status": "completed",
                 "summary": "This is a summary of the document",
             }
-        } 
+        }
+
 
 # Knowledge base sharing association table
 knowledge_base_sharing = Table(
     "knowledge_base_sharing",
     BaseModel.metadata,
-    Column("knowledge_base_id", String(255), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True),
-    Column("user_id", String(255), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "knowledge_base_id",
+        String(255),
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "user_id",
+        String(255),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
     Column("created_at", DateTime, default=func.now()),
 )
 
+
 class KnowledgeBase(BaseModel):
     """Knowledge base model"""
+
     __tablename__ = "knowledge_bases"
-    
+
     name = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     user_id = Column(String(255), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Define relationship to users that this knowledge base is shared with
-    shared_with = relationship("User", secondary=knowledge_base_sharing, lazy="joined", backref="shared_knowledge_bases")
-    
+    shared_with = relationship(
+        "User",
+        secondary=knowledge_base_sharing,
+        lazy="joined",
+        backref="shared_knowledge_bases",
+    )

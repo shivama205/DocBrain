@@ -1,20 +1,25 @@
-from typing import Annotated, Any, List, Optional
-from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Annotated, Optional
+
+from pydantic import BaseModel, Field
 
 from app.db.models.knowledge_base import DocumentStatus
 from app.schemas.user import UserResponse
+
 
 class KnowledgeBaseBase(BaseModel):
     name: str = Field(..., alias="name")
     description: str = Field(..., alias="description")
 
+
 class KnowledgeBaseCreate(KnowledgeBaseBase):
     pass
+
 
 class KnowledgeBaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+
 
 class SharedUserInfo(BaseModel):
     id: str
@@ -23,6 +28,7 @@ class SharedUserInfo(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 class KnowledgeBaseResponse(KnowledgeBaseBase):
     id: str
@@ -33,6 +39,7 @@ class KnowledgeBaseResponse(KnowledgeBaseBase):
 
     class Config:
         from_attributes = True
+
 
 class DocumentResponse(BaseModel):
     id: str
@@ -46,17 +53,23 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
+
 class DocumentUploadResponse(BaseModel):
     document_id: str
     status: DocumentStatus
     message: str = "Document upload initiated"
 
+
 class KnowledgeBaseShareRequest(BaseModel):
-    user_id: str = Field(..., description="ID of the user to share the knowledge base with")
+    user_id: str = Field(
+        ..., description="ID of the user to share the knowledge base with"
+    )
+
 
 class KnowledgeBaseUnshareRequest(BaseModel):
     user_id: str = Field(..., description="ID of the user to remove access for")
 
+
 class KnowledgeBaseSharingResponse(BaseModel):
     success: bool
-    message: str 
+    message: str

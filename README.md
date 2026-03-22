@@ -4,6 +4,7 @@
 
 Self-hosted RAG for teams that can't send data to third-party APIs. Built-in RBAC, multi-LLM support, and natural language queries over your tabular data.
 
+[![CI](https://github.com/shivama205/DocBrain/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/shivama205/DocBrain/actions/workflows/ci.yml)
 ![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Self-Hosted](https://img.shields.io/badge/deploy-self--hosted-brightgreen)

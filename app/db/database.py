@@ -1,11 +1,12 @@
-from typing import Generator
 import logging
+from typing import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
+
 from app.core.config import settings
 
 # Import the base class
-from app.db.base_class import Base
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +23,11 @@ engine = create_engine(
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+
 def get_db() -> Generator[Session, None, None]:
     """
     Get a database session.
-    
+
     This function is used as a dependency in FastAPI endpoints to get a database session.
     It yields a session and ensures it's closed after use.
     """
@@ -33,4 +35,4 @@ def get_db() -> Generator[Session, None, None]:
     try:
         yield db
     finally:
-        db.close() 
+        db.close()

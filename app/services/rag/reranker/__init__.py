@@ -6,18 +6,15 @@ by reordering them based on their relevance to the query.
 """
 
 from app.services.rag.reranker.reranker import (
-    Reranker,
     CrossEncoderReranker,
+    Reranker,
 )
-from app.services.rag.reranker.reranker_factory import (
-    RerankerFactory,
-    create_reranker
-)
+from app.services.rag.reranker.reranker_factory import RerankerFactory, create_reranker
 
 try:
     from app.services.rag.reranker.pinecone_reranker import (
+        PINECONE_AVAILABLE,
         PineconeReranker,
-        PINECONE_AVAILABLE
     )
 except Exception:
     PINECONE_AVAILABLE = False
@@ -28,11 +25,11 @@ except Exception:
     FlagEmbeddingReranker = None
 
 __all__ = [
-    'Reranker',
-    'CrossEncoderReranker',
-    'PineconeReranker',
-    'RerankerFactory',
-    'create_reranker',
-    'PINECONE_AVAILABLE',
-    'FlagEmbeddingReranker'
+    "Reranker",
+    "CrossEncoderReranker",
+    "PineconeReranker",
+    "RerankerFactory",
+    "create_reranker",
+    "PINECONE_AVAILABLE",
+    "FlagEmbeddingReranker",
 ]
