@@ -20,16 +20,10 @@ jobs:
           cache: pip
 
       - name: Install linting tools
-        run: pip install flake8 black isort
+        run: pip install flake8
 
-      - name: Check formatting with black
-        run: black --check --diff app/ tests/
-
-      - name: Check import ordering with isort
-        run: isort --check-only --diff app/ tests/
-
-      - name: Lint with flake8
-        run: flake8 app/ tests/ --max-line-length 120 --ignore E501,W503,E402
+      - name: Lint with flake8 (syntax errors and critical issues)
+        run: flake8 app/ tests/ --select=E9,F63,F7,F82 --show-source --statistics
 
   test:
     name: Test

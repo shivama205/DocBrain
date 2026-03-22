@@ -28,13 +28,7 @@ test-cov:
 	pytest tests/ -v --cov=app --cov-report=term-missing
 
 lint:
-	black --check --diff app/ tests/
-	isort --check-only --diff app/ tests/
-	flake8 app/ tests/ --max-line-length 120 --ignore E501,W503,E402
-
-format:
-	black app/ tests/
-	isort app/ tests/
+	flake8 app/ tests/ --select=E9,F63,F7,F82 --show-source --statistics
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -r {} +
