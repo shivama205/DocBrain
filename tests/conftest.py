@@ -4,6 +4,7 @@ Shared test fixtures for DocBrain test suite.
 Environment variables and module mocks are set up before any app imports
 to avoid database connection errors during testing.
 """
+
 import os
 import sys
 from unittest.mock import MagicMock
@@ -37,6 +38,7 @@ sys.modules.setdefault("app.db.database", _mock_db_module)
 # Now safe to import app modules
 # ---------------------------------------------------------------------------
 import pytest
+
 from app.db.models.user import UserRole
 from app.schemas.user import UserResponse
 

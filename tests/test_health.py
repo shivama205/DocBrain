@@ -1,22 +1,35 @@
 """Tests for the health and root endpoints using a real TestClient."""
+
 import sys
 from unittest.mock import MagicMock
 
-import pytest
-
 # Mock heavy dependencies so we can import app.main without ML libraries.
 _MOCKED_MODULES = [
-    "aiofiles", "celery", "celery.result",
+    "aiofiles",
+    "celery",
+    "celery.result",
     "pinecone",
-    "PyPDF2", "markdown",
-    "PIL", "PIL.Image", "pytesseract",
-    "docling", "docling.document_converter",
-    "docling.datamodel", "docling.datamodel.base_models",
+    "PyPDF2",
+    "markdown",
+    "PIL",
+    "PIL.Image",
+    "pytesseract",
+    "docling",
+    "docling.document_converter",
+    "docling.datamodel",
+    "docling.datamodel.base_models",
     "docling.datamodel.pipeline_options",
-    "torch", "sentence_transformers", "FlagEmbedding",
-    "sendgrid", "sendgrid.helpers", "sendgrid.helpers.mail",
-    "google.generativeai", "google.genai",
-    "openai", "anthropic", "dirtyjson",
+    "torch",
+    "sentence_transformers",
+    "FlagEmbedding",
+    "sendgrid",
+    "sendgrid.helpers",
+    "sendgrid.helpers.mail",
+    "google.generativeai",
+    "google.genai",
+    "openai",
+    "anthropic",
+    "dirtyjson",
 ]
 
 for _mod in _MOCKED_MODULES:
@@ -25,11 +38,13 @@ for _mod in _MOCKED_MODULES:
 # pymysql shim so SQLAlchemy can resolve the mysql dialect
 try:
     import pymysql
+
     pymysql.install_as_MySQLdb()
 except ImportError:
     sys.modules.setdefault("MySQLdb", MagicMock())
 
 from fastapi.testclient import TestClient
+
 from app.main import app  # noqa: E402 — must come after mocks
 
 client = TestClient(app)

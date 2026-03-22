@@ -1,21 +1,24 @@
 from enum import Enum
-from typing import Optional, List
-from sqlalchemy import Column, String, Boolean, Enum as SQLAlchemyEnum
-from sqlalchemy.orm import relationship
+from typing import List, Optional
+
 from pydantic import EmailStr, Field
+from sqlalchemy import Boolean, Column, String
 
 from app.db.base_class import BaseModel
+
 
 class UserRole(str, Enum):
     ADMIN = "admin"
     OWNER = "owner"
     USER = "user"
 
+
 # SQLAlchemy User model
 class User(BaseModel):
     """User SQLAlchemy model"""
+
     __tablename__ = "users"
-    
+
     email = Column(String, unique=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
@@ -24,10 +27,12 @@ class User(BaseModel):
     verification_token = Column(String, nullable=True)
     reset_token = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
-    
+
+
 # Pydantic User model for API
 class UserModel:
     """Pydantic User model for API"""
+
     email: EmailStr
     hashed_password: str
     full_name: str
@@ -43,6 +48,6 @@ class UserModel:
                 "email": "user@example.com",
                 "full_name": "John Doe",
                 "role": "user",
-                "is_verified": True
+                "is_verified": True,
             }
-        } 
+        }
