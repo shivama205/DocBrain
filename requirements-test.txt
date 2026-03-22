@@ -9,6 +9,7 @@ starlette>=0.45.0
 
 # Database
 SQLAlchemy>=2.0.25
+PyMySQL>=1.1.0
 
 # Auth & security
 python-jose[cryptography]>=3.3.0
