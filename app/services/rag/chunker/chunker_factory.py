@@ -23,7 +23,8 @@ class ChunkerFactory:
             Chunker instance
         """
         try:
-            # TODO: Implement chunker factory based on document type
+            # MultiLevelChunker works well across all document types.
+            # Extend here with type-specific chunkers if needed (e.g., CSV row-based).
             return MultiLevelChunker()
         except Exception as e:
             logger.error(f"Failed to create chunker: {e}", exc_info=True)

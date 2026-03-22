@@ -1,9 +1,16 @@
+import time
+import logging
+from collections import defaultdict
+
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from typing import Dict, List, Callable, Optional
 
 from app.core.permissions import Permission, get_permissions_for_role
 from app.db.models.user import UserRole
+
+logger = logging.getLogger(__name__)
 
 
 class PermissionsMiddleware(BaseHTTPMiddleware):
@@ -144,4 +151,58 @@ DEFAULT_PATH_PERMISSIONS: Dict[str, Dict[str, List[Permission]]] = {
         "PUT": [Permission.MANAGE_SYSTEM],
         "DELETE": [Permission.MANAGE_SYSTEM],
     },
-} 
+}
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    Simple in-memory rate limiting middleware.
+
+    Limits requests per client IP using a sliding window approach.
+    For production deployments with multiple workers, consider using
+    a Redis-backed solution instead.
+    """
+
+    def __init__(
+        self,
+        app,
+        requests_per_minute: int = 60,
+        exempt_paths: Optional[List[str]] = None,
+    ):
+        super().__init__(app)
+        self.requests_per_minute = requests_per_minute
+        self.exempt_paths = exempt_paths or ["/health", "/docs", "/openapi.json", "/redoc"]
+        # {client_ip: [timestamp, ...]}
+        self._requests: Dict[str, List[float]] = defaultdict(list)
+
+    def _get_client_ip(self, request: Request) -> str:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        return request.client.host if request.client else "unknown"
+
+    def _cleanup(self, timestamps: List[float], now: float) -> List[float]:
+        """Remove timestamps older than 60 seconds."""
+        cutoff = now - 60.0
+        return [t for t in timestamps if t > cutoff]
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        if any(request.url.path.startswith(p) for p in self.exempt_paths):
+            return await call_next(request)
+
+        client_ip = self._get_client_ip(request)
+        now = time.time()
+
+        # Clean old entries and record this request
+        self._requests[client_ip] = self._cleanup(self._requests[client_ip], now)
+
+        if len(self._requests[client_ip]) >= self.requests_per_minute:
+            logger.warning(f"Rate limit exceeded for {client_ip}")
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too many requests. Please try again later."},
+                headers={"Retry-After": "60"},
+            )
+
+        self._requests[client_ip].append(now)
+        return await call_next(request) 

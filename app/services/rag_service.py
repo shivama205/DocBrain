@@ -155,7 +155,7 @@ class RAGService:
             # Create retriever using the provided knowledge_base_id
             retriever = RetrieverFactory.create_retriever(knowledge_base_id)
 
-            # TODO: Add Text 2 SQL to convert query to SQL and remove chunks 
+            # For SQL-based retrieval, use the TAG service via QueryRouter instead.
             # Retrieve chunks
             chunks = await retriever.search(query, top_k, similarity_threshold)
             return chunks
