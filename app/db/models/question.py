@@ -24,10 +24,10 @@ class Question(BaseModel):
     
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)
-    answer_type = Column(String, nullable=False)
-    status = Column(String, default=QuestionStatus.PENDING.value)
-    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    answer_type = Column(String(50), nullable=False)
+    status = Column(String(50), default=QuestionStatus.PENDING.value)
+    knowledge_base_id = Column(String(255), ForeignKey("knowledge_bases.id"), nullable=False)
+    user_id = Column(String(255), ForeignKey("users.id"), nullable=False)
 
 # Pydantic model for API validation and serialization
 class QuestionModel(DBModel):

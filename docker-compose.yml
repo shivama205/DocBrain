@@ -1,29 +1,93 @@
-version: '3.8'
-
 services:
-  app:
-    build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - .:/app
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: docbrain
+      MYSQL_USER: docbrain
+      MYSQL_PASSWORD: docbrain
     ports:
-      - "8000:8000"
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
-
-  celery_worker:
-    build: .
-    command: celery -A app.worker.celery worker --loglevel=info
+      - "3306:3306"
     volumes:
-      - .:/app
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    depends_on:
-      - redis
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:alpine
     ports:
-      - "6379:6379" 
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    command: >
+      sh -c "python -c 'from app.db.database import engine; from app.db.base_class import Base; from app.db.models import user, knowledge_base, message, question; Base.metadata.create_all(bind=engine)' &&
+             alembic stamp head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - .:/app
+      - chroma_data:/app/chroma_data
+      - upload_data:/app/data/uploads
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - MYSQL_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - VECTOR_STORE_TYPE=chroma
+      - RETRIEVER_TYPE=chroma
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery_worker:
+    build: .
+    command: celery -A app.worker.celery worker --loglevel=info --pool=solo
+    volumes:
+      - .:/app
+      - chroma_data:/app/chroma_data
+      - upload_data:/app/data/uploads
+    env_file:
+      - .env
+    environment:
+      - MYSQL_HOST=db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CHROMA_PERSIST_DIR=/app/chroma_data
+      - VECTOR_STORE_TYPE=chroma
+      - RETRIEVER_TYPE=chroma
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ui:
+    build:
+      context: ../DocBrain-UI
+      args:
+        VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  mysql_data:
+  chroma_data:
+  upload_data:

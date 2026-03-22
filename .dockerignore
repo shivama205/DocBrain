@@ -1,0 +1,10 @@
+.git
+.env
+__pycache__
+*.pyc
+.pytest_cache
+chroma_data
+.mypy_cache
+node_modules
+.venv
+venv

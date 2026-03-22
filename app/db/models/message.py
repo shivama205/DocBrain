@@ -27,16 +27,16 @@ class Message(BaseModel):
     __tablename__ = "messages"
     
     content = Column(Text, nullable=False)
-    content_type = Column(String, nullable=False, default=MessageContentType.TEXT.value)
-    kind = Column(String, nullable=False, default=MessageKind.USER.value)
-    conversation_id = Column(String, ForeignKey("conversations.id"), nullable=False)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    content_type = Column(String(100), nullable=False, default=MessageContentType.TEXT.value)
+    kind = Column(String(50), nullable=False, default=MessageKind.USER.value)
+    conversation_id = Column(String(255), ForeignKey("conversations.id"), nullable=False)
+    user_id = Column(String(255), ForeignKey("users.id"), nullable=False)
     sources = Column(JSON, nullable=True)
     message_metadata = Column(JSON, nullable=True)  # For storing query routing info and other metadata
-    status = Column(String, nullable=False)
+    status = Column(String(50), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
     # Optional fields for tracking sources
-    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"))
+    knowledge_base_id = Column(String(255), ForeignKey("knowledge_bases.id"))
     

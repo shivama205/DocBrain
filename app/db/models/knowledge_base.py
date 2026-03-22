@@ -32,13 +32,13 @@ class Document(BaseModel):
     """Document model"""
     __tablename__ = "documents"
     
-    title = Column(String, nullable=False)
-    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"), nullable=False)
+    title = Column(String(500), nullable=False)
+    knowledge_base_id = Column(String(255), ForeignKey("knowledge_bases.id"), nullable=False)
     content = Column(LargeBinary, nullable=False)  # Base64 encoded content
-    content_type = Column(String, nullable=False)
+    content_type = Column(String(100), nullable=False)
     size_bytes = Column(Integer, nullable=False)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    status = Column(String, default=DocumentStatus.PENDING.value)
+    user_id = Column(String(255), ForeignKey("users.id"), nullable=False)
+    status = Column(String(50), default=DocumentStatus.PENDING.value)
     error_message = Column(Text, nullable=True)
     processed_chunks = Column(Integer, nullable=True)
     summary = Column(Text, nullable=True)
@@ -63,8 +63,8 @@ class Document(BaseModel):
 knowledge_base_sharing = Table(
     "knowledge_base_sharing",
     BaseModel.metadata,
-    Column("knowledge_base_id", String, ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True),
-    Column("user_id", String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("knowledge_base_id", String(255), ForeignKey("knowledge_bases.id", ondelete="CASCADE"), primary_key=True),
+    Column("user_id", String(255), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
     Column("created_at", DateTime, default=func.now()),
 )
 
@@ -72,9 +72,9 @@ class KnowledgeBase(BaseModel):
     """Knowledge base model"""
     __tablename__ = "knowledge_bases"
     
-    name = Column(String, nullable=False)
+    name = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    user_id = Column(String(255), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     

@@ -13,13 +13,19 @@ from app.services.rag.reranker.reranker_factory import (
     RerankerFactory,
     create_reranker
 )
-from app.services.rag.reranker.pinecone_reranker import (
-    PineconeReranker,
-    PINECONE_AVAILABLE
-)
-from app.services.rag.reranker.flag_reranker import (
-    FlagEmbeddingReranker,
-)
+
+try:
+    from app.services.rag.reranker.pinecone_reranker import (
+        PineconeReranker,
+        PINECONE_AVAILABLE
+    )
+except Exception:
+    PINECONE_AVAILABLE = False
+
+try:
+    from app.services.rag.reranker.flag_reranker import FlagEmbeddingReranker
+except Exception:
+    FlagEmbeddingReranker = None
 
 __all__ = [
     'Reranker',
@@ -29,4 +35,4 @@ __all__ = [
     'create_reranker',
     'PINECONE_AVAILABLE',
     'FlagEmbeddingReranker'
-] 
+]

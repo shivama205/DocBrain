@@ -1,7 +1,6 @@
 from typing import List, Dict, Any, Optional
 import logging
 import random
-from pinecone import Pinecone
 from app.core.config import settings
 from app.services.rag.retriever.retriever import Retriever
 from app.services.llm.factory import LLMFactory
@@ -22,14 +21,15 @@ class PineconeRetriever(Retriever):
             knowledge_base_id: The ID of the knowledge base this retriever will work with
         """
         super().__init__(knowledge_base_id)
-        
-        # Initialize Pinecone
+
+        # Initialize Pinecone (lazy import)
+        from pinecone import Pinecone
         self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
         self.index_name = settings.PINECONE_INDEX_NAME
         self.index = self.pc.Index(self.index_name)
         
         # Vector dimension for embeddings
-        self.dimension = 768  # Dimension for text-embedding-004
+        self.dimension = 3072  # Dimension for gemini-embedding-001
     
     async def add_chunks(self, chunks: List[Dict[str, Any]]) -> None:
         """

@@ -5,13 +5,17 @@ from app.services.rag.reranker.reranker import (
     Reranker,
     CrossEncoderReranker,
 )
-from app.services.rag.reranker.pinecone_reranker import (
-    PineconeReranker,
-    PINECONE_AVAILABLE
-)
-from app.services.rag.reranker.flag_reranker import (
-    FlagEmbeddingReranker,
-)
+try:
+    from app.services.rag.reranker.pinecone_reranker import (
+        PineconeReranker,
+        PINECONE_AVAILABLE
+    )
+except Exception:
+    PINECONE_AVAILABLE = False
+try:
+    from app.services.rag.reranker.flag_reranker import FlagEmbeddingReranker
+except Exception:
+    FlagEmbeddingReranker = None
 
 logger = logging.getLogger(__name__)
 

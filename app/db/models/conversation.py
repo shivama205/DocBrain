@@ -7,9 +7,9 @@ class Conversation(BaseModel):
     """Conversation SQLAlchemy model"""
     __tablename__ = "conversations"
     
-    title = Column(String, nullable=False)
-    user_id = Column(String, ForeignKey("users.id"))
-    knowledge_base_id = Column(String, ForeignKey("knowledge_bases.id"))
+    title = Column(String(500), nullable=False)
+    user_id = Column(String(255), ForeignKey("users.id"))
+    knowledge_base_id = Column(String(255), ForeignKey("knowledge_bases.id"))
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

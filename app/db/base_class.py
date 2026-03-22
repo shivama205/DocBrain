@@ -11,6 +11,6 @@ class BaseModel(Base):
     """Base model class with common fields for all SQLAlchemy models"""
     __abstract__ = True
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(String(255), primary_key=True, default=lambda: str(uuid.uuid4()))
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, onupdate=func.now()) 

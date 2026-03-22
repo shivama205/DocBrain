@@ -1,6 +1,6 @@
 from typing import List, Any, Dict, Optional, Union
 from pydantic_settings import BaseSettings
-from pydantic import EmailStr, AnyHttpUrl, PostgresDsn, field_validator
+from pydantic import AnyHttpUrl, PostgresDsn, field_validator
 import os
 
 class Settings(BaseSettings):
@@ -14,17 +14,38 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
-    # Email Settings
-    SENDGRID_API_KEY: str
-    FROM_EMAIL: EmailStr
+    # Email Settings (optional)
+    SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
+    FROM_EMAIL: Optional[str] = os.getenv("FROM_EMAIL", None)
 
     # Vector Store
+    VECTOR_STORE_TYPE: str = os.getenv("VECTOR_STORE_TYPE", "chroma")  # Options: chroma, pinecone
+    RETRIEVER_TYPE: str = os.getenv("RETRIEVER_TYPE", "chroma")  # Options: chroma, pinecone
+
+    # ChromaDB (default - local, zero config)
+    CHROMA_PERSIST_DIR: str = os.getenv("CHROMA_PERSIST_DIR", "./chroma_data")
+    CHROMA_COLLECTION_NAME: str = os.getenv("CHROMA_COLLECTION_NAME", "docbrain")
+    CHROMA_SUMMARY_COLLECTION_NAME: str = os.getenv("CHROMA_SUMMARY_COLLECTION_NAME", "summary")
+    CHROMA_QUESTIONS_COLLECTION_NAME: str = os.getenv("CHROMA_QUESTIONS_COLLECTION_NAME", "questions")
+
+    # Pinecone (optional - for production/scale)
     PINECONE_API_KEY: str = os.getenv("PINECONE_API_KEY", "")
-    PINECONE_ENVIRONMENT: str
+    PINECONE_ENVIRONMENT: str = os.getenv("PINECONE_ENVIRONMENT", "")
     PINECONE_INDEX_NAME: str = os.getenv("PINECONE_INDEX_NAME", "docbrain")
     PINECONE_SUMMARY_INDEX_NAME: str = os.getenv("PINECONE_SUMMARY_INDEX_NAME", "summary")
     PINECONE_QUESTIONS_INDEX_NAME: str = os.getenv("PINECONE_QUESTIONS_INDEX_NAME", "questions")
-    RETRIEVER_TYPE: str = os.getenv("RETRIEVER_TYPE", "pinecone")
+
+    @property
+    def SUMMARY_INDEX_NAME(self) -> str:
+        if self.VECTOR_STORE_TYPE == "pinecone":
+            return self.PINECONE_SUMMARY_INDEX_NAME
+        return self.CHROMA_SUMMARY_COLLECTION_NAME
+
+    @property
+    def QUESTIONS_INDEX_NAME(self) -> str:
+        if self.VECTOR_STORE_TYPE == "pinecone":
+            return self.PINECONE_QUESTIONS_INDEX_NAME
+        return self.CHROMA_QUESTIONS_COLLECTION_NAME
 
     # LLM
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
@@ -33,7 +54,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # Test Emails
-    WHITELISTED_EMAILS: str
+    WHITELISTED_EMAILS: str = os.getenv("WHITELISTED_EMAILS", "")
 
     # RAG
     RAG_TOP_K: int = 3
@@ -91,7 +112,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     DEFAULT_LLM_MODEL: Optional[str] = os.getenv("DEFAULT_LLM_MODEL", None)  # Default model based on provider
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-004")  # Default embedding model
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")  # Default embedding model
 
     class Config:
         env_file = ".env"

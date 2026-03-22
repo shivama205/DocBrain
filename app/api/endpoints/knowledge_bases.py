@@ -202,7 +202,7 @@ async def get_shared_users(
 @router.post("/{kb_id}/documents", response_model=DocumentResponse)
 async def create_document(
     kb_id: str = Path(..., description="Knowledge base ID"),
-    file: UploadFile = Annotated[..., File(..., description="Document to upload")],
+    file: UploadFile = File(..., description="Document to upload"),
     current_user: UserResponse = Depends(get_current_user),
     doc_service: DocumentService = Depends(get_document_service)
 ):

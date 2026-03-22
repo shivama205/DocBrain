@@ -1,120 +1,76 @@
 ![DocBrain-Banner-3](https://github.com/user-attachments/assets/6c882743-a60e-4efd-b1b7-13f83167e38e)
 
-# DocBrain - Self-Hosted RAG Framework
+# DocBrain
 
-![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)
+Self-hosted RAG for teams that can't send data to third-party APIs. Built-in RBAC, multi-LLM support, and natural language queries over your tabular data.
+
+![Python Version](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Security](https://img.shields.io/badge/security-self--hosted-brightgreen)
+![Self-Hosted](https://img.shields.io/badge/deploy-self--hosted-brightgreen)
 
-A privacy-focused, modular Retrieval-Augmented Generation framework for enterprises requiring full control over their sensitive data. Built for developers who need an alternative to third-party RAG services. Now with enhanced query routing, table data support, and robust role-based access controls.
+![DocBrain Demo](docs/assets/docbrain-demo.gif)
+
+## Quickstart
+
+```bash
+git clone https://github.com/shivama205/DocBrain.git && cd DocBrain
+cp .env.example .env   # add your LLM API key (Gemini, OpenAI, or Anthropic)
+docker compose up -d
+# Open http://localhost:3000
+```
+
+That's it. The stack includes the API server, Celery worker, MySQL, Redis, ChromaDB (local vector store), and the React frontend. The only thing you need to provide is an LLM API key.
 
 ## Why DocBrain?
 
-- 🔒 **Data Sovereignty** - Keep sensitive documents fully within your infrastructure
-- 🧩 **Framework Agnostic** - Purpose-built without LangChain/LlamaIndex dependencies
-- ⚡ **Modular Architecture** - Start with managed services, transition to in-house solutions
-- 🛡️ **Enterprise-Ready** - Designed for internal security and compliance needs
-- 🌱 **Open Core** - Community-driven improvements with commercial extension potential
+- **Actually self-hosted** -- vectors stay local (ChromaDB), no data leaves your infra
+- **Table-Augmented Generation** -- ask natural language questions over CSVs, get SQL-generated answers
+- **No framework lock-in** -- zero LangChain/LlamaIndex dependencies
+- **Built-in RBAC** -- three role levels + knowledge base sharing with granular permissions
+- **Multi-LLM** -- swap between Gemini, OpenAI, Anthropic via config
 
 ## Key Features
 
-| Component          | Description                                                                 |
-|--------------------|-----------------------------------------------------------------------------|
-| **Secure Ingestion** | Process documents without external API dependencies                        |
-| **Vector Storage** | Currently using Pinecone for development, with plans to support custom vector DBs in the future |
-| **Privacy First**    | No data leaves your environment - self-contained processing pipeline       |
-| **Multiple LLM Provider Support** | Factory pattern implementation supporting Google Gemini, OpenAI, and other providers |
-| **Query Router** | Advanced query routing with complex question handling for FAQs, feature requirements, and specialized use cases |
-| **Table Augmented Generation (TAG)** | Enhanced reasoning over tabular data (CSV, Excel) with automatic SQL generation |
-| **Role-Based Access Control** | Comprehensive permission system with Admin, Owner, and User roles |
-| **Knowledge Base Sharing** | Secure sharing of knowledge bases between users with granular controls |
+| Feature | Description |
+|---------|-------------|
+| **Document RAG** | Upload PDFs, DOCX, TXT, Markdown, HTML -- ask questions, get cited answers |
+| **Table-Augmented Generation** | Upload CSVs/Excel -- ask questions in plain English, get SQL-generated results |
+| **Local Vector Store** | ChromaDB runs locally by default. Pinecone available for production scale |
+| **Multi-LLM Support** | Google Gemini, OpenAI, Anthropic -- switch with one env var |
+| **Query Router** | Automatically routes queries to RAG or TAG based on content type |
+| **RBAC** | Admin, Owner, User roles with granular permissions |
+| **Knowledge Base Sharing** | Share knowledge bases with specific users |
+| **FAQ System** | Add curated Q&A pairs that take priority over document search |
 
-## Project Philosophy
+## Manual Setup (without Docker)
 
-DocBrain was created to address common challenges in enterprise RAG implementations:
-
-- Maintaining control over sensitive internal documents
-- Avoiding dependency on specific ML frameworks
-- Creating clear paths from prototype to production
-
-DocBrain enables organizations to:
-- Start quickly with managed services
-- Gradually replace components with internal solutions
-- Maintain full visibility into data flows
-- Meet strict compliance requirements
-
-## Getting Started
-
-DocBrain is a project to be set up, not a Python library to be installed.
+If you prefer running without Docker:
 
 ```bash
-# Clone the repository
-git clone https://github.com/shivama205/DocBrain.git
-cd DocBrain
-
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure your environment
+# Configure environment
 cp .env.example .env
-# Edit .env with your specific configuration settings before proceeding
+# Edit .env: add LLM API key, set database credentials
+
+# Terminal 1: Start API server
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2: Start Celery worker
+celery -A app.worker.celery worker --loglevel=info
 ```
 
-### Running the Services
+You'll also need MySQL and Redis running. See `.env.example` for all configuration options.
 
-DocBrain requires running two separate components:
+The frontend is in a separate repo: [DocBrain-UI](https://github.com/shivama205/DocBrain-UI).
 
-1. **API Server**: Handles requests and serves responses to clients
-2. **Worker**: Processes background tasks like document ingestion
+## Vector Store Options
 
-You need to start each component separately in different terminal sessions:
-
-```bash
-# Terminal 1: Start the API server
-make run-dev
-
-# Terminal 2: Start the Celery worker
-make worker
-# or 
-# celery -A app.workers worker --loglevel=info
-```
-
-> **Note**: Keep both terminals running while using DocBrain. The API server won't function correctly without the worker process.
-
-### Configuration
-
-DocBrain is configured through the `.env` file. Essential configuration includes:
-
-```
-# Database settings
-DATABASE_URL=mysql+pymysql://username:password@localhost/docbrain
-
-# Vector storage settings (Pinecone is currently the only supported option)
-PINECONE_API_KEY=your_pinecone_api_key
-PINECONE_ENVIRONMENT=your_pinecone_environment
-
-# LLM settings
-LLM_PROVIDER=gemini  # Options: gemini, openai, anthropic, etc.
-GEMINI_API_KEY=your_gemini_api_key
-OPENAI_API_KEY=your_openai_api_key
-# Add other provider API keys as needed
-
-# Document storage
-DOCUMENT_STORAGE_PATH=./storage/documents
-```
-
-Make sure to set these values before starting the services.
-
-## User Interface
-
-This framework has a companion frontend project available at [DocBrain-UI](https://github.com/shivama205/DocBrain-UI). The UI provides:
-
-- Document upload and management
-- Interactive query interface
-- Visualization of retrieval results
-- User-friendly settings configuration
-
-To use the complete system, set up both this backend and the frontend repository.
+| Store | Use Case | Config |
+|-------|----------|--------|
+| **ChromaDB** (default) | Development, self-hosted production. Zero config, runs locally | `VECTOR_STORE_TYPE=chroma` |
+| **Pinecone** | Large-scale production with managed infrastructure | `VECTOR_STORE_TYPE=pinecone` + API key |
 
 ## Advanced Features
 
@@ -177,7 +133,7 @@ We've recently completed implementation of:
 - ✅ **Knowledge Base Sharing** - Secure sharing between users
 
 Some planned future features include:
-- **Multiple Vector Database Support** - Alternatives to Pinecone
+- ✅ **Multiple Vector Database Support** - ChromaDB (local) + Pinecone (cloud)
 - **RAG Evaluation Framework** - Integration with RAGAS for measuring performance
 - **Document-Level Permissions** - Fine-grained access control at the document level
 - **API Rate Limiting** - Prevent abuse and ensure fair resource allocation

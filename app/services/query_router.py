@@ -194,10 +194,10 @@ class QueryRouter:
                 return None
                 
             # Get the questions vector store
-            logger.info(f"Getting vector store for questions index: {settings.PINECONE_QUESTIONS_INDEX_NAME}")
+            logger.info(f"Getting vector store for questions index: {settings.QUESTIONS_INDEX_NAME}")
             questions_vector_store = get_vector_store(
-                store_type="pinecone", 
-                index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
+                store_type=settings.VECTOR_STORE_TYPE, 
+                index_name=settings.QUESTIONS_INDEX_NAME
             )
             
             # Log the search parameters
@@ -461,8 +461,8 @@ If the user's question is substantially different, just use the provided answer 
         """
         # Get the summary vector store
         summary_vector_store = get_vector_store(
-            store_type="pinecone", 
-            index_name=settings.PINECONE_SUMMARY_INDEX_NAME
+            store_type=settings.VECTOR_STORE_TYPE, 
+            index_name=settings.SUMMARY_INDEX_NAME
         )
         
         # Search for relevant document summaries

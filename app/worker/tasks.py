@@ -221,8 +221,8 @@ def initiate_document_vector_deletion(self, document_id: str) -> None:
             # Also delete document summary from the summary index
             logger.info(f"Deleting document summary from summary index for document {document_id}")
             summary_vector_store = get_vector_store(
-                store_type="pinecone", 
-                index_name=settings.PINECONE_SUMMARY_INDEX_NAME
+                store_type=settings.VECTOR_STORE_TYPE, 
+                index_name=settings.SUMMARY_INDEX_NAME
             )
             await summary_vector_store.delete_document_chunks(document_id, "summaries")
             
@@ -461,8 +461,8 @@ def initiate_question_ingestion(self, question_id: str) -> None:
             try:
                 # Get vector store instance
                 vector_store = get_vector_store(
-                    store_type="pinecone",
-                    index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
+                    store_type=settings.VECTOR_STORE_TYPE,
+                    index_name=settings.QUESTIONS_INDEX_NAME
                 )
                 
                 # Create metadata with question-specific fields only
@@ -541,8 +541,8 @@ def initiate_question_vector_deletion(self, question_id: str, knowledge_base_id:
         try:
             # Get vector store instance for questions index
             vector_store = get_vector_store(
-                store_type="pinecone",
-                index_name=settings.PINECONE_QUESTIONS_INDEX_NAME
+                store_type=settings.VECTOR_STORE_TYPE,
+                index_name=settings.QUESTIONS_INDEX_NAME
             )
             
             # Delete from vector store using knowledge_base_id as namespace

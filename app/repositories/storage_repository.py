@@ -22,7 +22,9 @@ class StorageRepository:
 
             # insert the data one by one 
             for row in data:
-                INSERT_ROW_QUERY = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join([f"'{str(cell)}'" for cell in row])})"
+                values_str = ', '.join(["'{}'".format(str(cell)) for cell in row])
+                columns_str = ', '.join(columns)
+                INSERT_ROW_QUERY = f"INSERT INTO {table_name} ({columns_str}) VALUES ({values_str})"
                 logger.info(f"Insert Row Query: {INSERT_ROW_QUERY}")
                 db.execute(text(INSERT_ROW_QUERY))
             db.commit()

@@ -356,8 +356,8 @@ class RAGService:
             
             # Get the summary vector store
             summary_vector_store = get_vector_store(
-                store_type="pinecone", 
-                index_name=settings.PINECONE_SUMMARY_INDEX_NAME
+                store_type=settings.VECTOR_STORE_TYPE, 
+                index_name=settings.SUMMARY_INDEX_NAME
             )
             
             # Create a single chunk with the summary

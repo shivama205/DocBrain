@@ -1,5 +1,4 @@
 from typing import Any, Dict, List
-from FlagEmbedding import FlagReranker
 from app.services.rag.reranker.reranker import Reranker
 import logging
 
@@ -7,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 class FlagEmbeddingReranker(Reranker):
     def __init__(self, model_name: str = "BAAI/bge-reranker-v2-gemma"):
+        from FlagEmbedding import FlagReranker
         # Force CPU usage for the model to avoid MPS issues
         self.reranker = FlagReranker(model_name, use_fp16=False)
         logger.info(f"Initialized FlagEmbeddingReranker with model: {model_name} (using CPU only)")

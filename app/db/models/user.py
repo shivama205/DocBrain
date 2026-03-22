@@ -16,13 +16,13 @@ class User(BaseModel):
     """User SQLAlchemy model"""
     __tablename__ = "users"
     
-    email = Column(String, unique=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    full_name = Column(String, nullable=False)
-    role = Column(String, default=UserRole.USER.value)
+    email = Column(String(255), unique=True, nullable=False)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False)
+    role = Column(String(50), default=UserRole.USER.value)
     is_verified = Column(Boolean, default=False)
-    verification_token = Column(String, nullable=True)
-    reset_token = Column(String, nullable=True)
+    verification_token = Column(String(255), nullable=True)
+    reset_token = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
     
 # Pydantic User model for API

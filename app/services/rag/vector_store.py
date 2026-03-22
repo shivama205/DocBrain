@@ -1,5 +1,4 @@
 from typing import List, Dict, Any, Optional
-from pinecone import Pinecone
 from app.core.config import settings
 import logging
 import random
@@ -59,13 +58,14 @@ class VectorStore(ABC):
 
 class PineconeVectorStore(VectorStore):
     """Pinecone implementation of the VectorStore interface"""
-    
+
     def __init__(self, index_name: str = "docbrain"):
         """Initialize PineconeVectorStore with specific index name
-        
+
         Args:
             index_name: Name of the Pinecone index to use ('docbrain' or 'summary')
         """
+        from pinecone import Pinecone
         # Initialize Pinecone client
         self.pc = Pinecone(api_key=settings.PINECONE_API_KEY)
         
@@ -81,7 +81,7 @@ class PineconeVectorStore(VectorStore):
             raise
         
         # Vector dimension from text-embedding-004
-        self.dimension = 768
+        self.dimension = 3072
         
         # Connection status
         self._connected = True
@@ -766,13 +766,15 @@ class VectorStoreFactory:
             logger.info(f"Creating new {store_type} instance for index {index_name}")
             if store_type == "pinecone":
                 instance = PineconeVectorStore(index_name=index_name)
-                # Store in registry
-                cls._instances[instance_key] = instance
-                return instance
+            elif store_type == "chroma":
+                from app.services.rag.chroma_vector_store import ChromaVectorStore
+                instance = ChromaVectorStore(index_name=index_name)
             else:
-                # For future implementations like weaviate or chroma
-                # We can add them here when needed
                 raise ValueError(f"Unsupported vector store type: {store_type}")
+
+            # Store in registry
+            cls._instances[instance_key] = instance
+            return instance
             
     @classmethod
     def cleanup(cls, store_type: str = None, index_name: str = None):
@@ -830,7 +832,7 @@ class VectorStoreFactory:
 
 
 # Helper functions for working with vector stores
-def get_vector_store(store_type: str = "pinecone", index_name: str = "docbrain") -> VectorStore:
+def get_vector_store(store_type: str = None, index_name: str = "docbrain") -> VectorStore:
     """Get a vector store instance - uses singleton pattern
     
     This function returns a singleton instance for each unique combination of
@@ -844,4 +846,6 @@ def get_vector_store(store_type: str = "pinecone", index_name: str = "docbrain")
     Returns:
         VectorStore instance (singleton per unique combination of parameters)
     """
-    return VectorStoreFactory.create(store_type=store_type, index_name=index_name) 
+    if store_type is None:
+        store_type = getattr(settings, 'VECTOR_STORE_TYPE', 'chroma')
+    return VectorStoreFactory.create(store_type=store_type, index_name=index_name)

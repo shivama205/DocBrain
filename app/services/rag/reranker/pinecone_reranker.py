@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 try:
     from pinecone import Pinecone
     PINECONE_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception) as e:
     PINECONE_AVAILABLE = False
-    logger.warning("Pinecone not installed. PineconeReranker will not be available.")
+    logger.warning(f"Pinecone not available: {e}. PineconeReranker will not be available.")
 
 
 class PineconeReranker(Reranker):
