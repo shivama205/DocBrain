@@ -9,7 +9,12 @@ Self-hosted RAG for teams that can't send data to third-party APIs. Built-in RBA
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Self-Hosted](https://img.shields.io/badge/deploy-self--hosted-brightgreen)
 
-![DocBrain Demo](docs/assets/docbrain-demo.gif)
+<div align="center">
+  <a href="https://github.com/shivama205/DocBrain/raw/main/docs/assets/docbrain-demo.mp4">
+    <img src="docs/assets/docbrain-demo.gif" alt="DocBrain Demo" width="800" />
+  </a>
+  <p><em>Click to watch the full demo video</em></p>
+</div>
 
 ## Quickstart
 
