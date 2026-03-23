@@ -46,7 +46,7 @@ class RAGService:
         self,
         use_reranker: bool = True,
         reranker_model: str = "Cohere/rerank-v3.5",
-        llm_model: str = "gemini-2.0-flash",
+        llm_model: str = "gemini-2.5-flash",
         llm_provider: Optional[str] = None,
     ):
         """
@@ -417,7 +417,7 @@ def get_rag_service(
     Returns:
         RAGService instance
     """
-    model = llm_model or settings.DEFAULT_LLM_MODEL or "gemini-2.0-flash"
+    model = llm_model or settings.DEFAULT_LLM_MODEL or "gemini-2.5-flash"
     provider = llm_provider or settings.LLM_PROVIDER
 
     logger.info(f"Creating RAGService with model={model}, provider={provider}")

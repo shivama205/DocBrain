@@ -110,12 +110,17 @@ class ChromaRetriever(Retriever):
             if metadata_filter:
                 where_filter = {}
                 for key, value in metadata_filter.items():
+                    # Skip knowledge_base_id — ChromaDB uses separate collections per KB
+                    if key == "knowledge_base_id":
+                        continue
                     if isinstance(value, dict) and "$in" in value:
                         where_filter[key] = value
                     elif isinstance(value, (list, tuple)):
                         where_filter[key] = ','.join(str(x) for x in value)
                     else:
                         where_filter[key] = str(value)
+                if not where_filter:
+                    where_filter = None
 
             results = collection.query(
                 query_embeddings=[query_vector],

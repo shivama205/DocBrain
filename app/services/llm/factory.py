@@ -91,7 +91,7 @@ class LLMProvider(ABC):
 class GeminiProvider(LLMProvider):
     """Google Gemini implementation."""
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.0-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-2.5-flash"):
         """
         Initialize the Gemini provider.
 
@@ -378,7 +378,7 @@ class LLMFactory:
         if provider == "openai":
             return OpenAIProvider(api_key=api_key, model=model or "gpt-3.5-turbo")
         elif provider == "gemini":
-            return GeminiProvider(api_key=api_key, model=model or "gemini-2.0-flash")
+            return GeminiProvider(api_key=api_key, model=model or "gemini-2.5-flash")
         elif provider == "anthropic":
             return AnthropicProvider(
                 api_key=api_key, model=model or "claude-3-sonnet-20240229"
@@ -465,10 +465,7 @@ class LLMFactory:
 
         except Exception as e:
             logger.error(f"Error generating embedding: {e}", exc_info=True)
-            # If embedding fails, return a zero vector of default dimension
-            # This allows the system to continue operating, but will produce low-quality results
-            # Consider adding appropriate error handling in the calling code
-            return [0.0] * 768
+            raise
 
 
 # Convenience function
